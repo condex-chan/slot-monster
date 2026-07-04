@@ -6,3 +6,4 @@ dist/
 .env.*.local
 *.local
 .claude/ralph-loop.local.md
+dist-e2e/

@@ -223,6 +223,19 @@ export class BattleScene extends Phaser.Scene {
     for (const ev of this.sim.step()) this.playEvent(ev)
   }
 
+  /** E2E用: バトルの現在状態 */
+  isBattleOver(): boolean {
+    return this.sim ? this.sim.over : false
+  }
+
+  /** E2E用: 終局まで早送りし、end イベント経由で結果画面まで到達させる */
+  debugFastForward(): void {
+    if (!this.sim) return
+    while (!this.sim.over) {
+      for (const ev of this.sim.step()) this.playEvent(ev)
+    }
+  }
+
   private playEvent(ev: BattleEvent) {
     switch (ev.type) {
       case 'attack': {

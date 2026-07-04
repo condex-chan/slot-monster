@@ -221,6 +221,13 @@ export class MainScene extends Phaser.Scene {
     else this.stopNextReel()
   }
 
+  /** E2E用: 1スピンを即時に完了させる（抽選・払い出し・天井進行は本流と同じ経路） */
+  debugSpinOnce(): void {
+    if (this.phase !== 'idle' || !canSpin(gameState.coins, BET)) return
+    this.startSpin()
+    for (let i = 0; i < 3; i++) this.stopNextReel()
+  }
+
   private startSpin() {
     if (!canSpin(gameState.coins, BET)) return
     gameState.coins -= BET

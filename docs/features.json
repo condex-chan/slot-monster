@@ -137,7 +137,7 @@
     "priority": 20,
     "description": "E2Eスモーク: Puppeteer で dist/ を配信して起動→スピン→（__DEBUG__フックで）ラッシュ突入→戦闘進行→結果画面到達を自動確認。verify.sh に組み込み",
     "steps": ["scripts/e2e.mjs 作成", "verify.sh から呼ばれ green", "コンソールエラー0を検証"],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F21",
