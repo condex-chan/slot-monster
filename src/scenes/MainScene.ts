@@ -9,7 +9,7 @@ import {
   bandSymbolAt,
   snapPositionFor,
 } from '../core/reelband'
-import { BET, canSpin, payoutFor } from '../core/economy'
+import { BET, canSpin, eggsFor, payoutFor } from '../core/economy'
 import { CEILING_SPINS, entersBattle, nextCeilingCount, spinsUntilCeiling } from '../core/ceiling'
 import { flashReward } from '../core/flash'
 import { AUTO_UNLOCK_FLOOR, isAutoUnlocked, resolveFlashSuccess } from '../core/autospin'
@@ -84,6 +84,7 @@ export class MainScene extends Phaser.Scene {
         fontSize: '30px',
         color: '#ffd700',
         fontStyle: 'bold',
+        padding: { top: 6 },
       })
       .setOrigin(0.5)
     this.add
@@ -93,7 +94,11 @@ export class MainScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
 
-    this.coinText = this.add.text(24, 24, '', { fontSize: '24px', color: '#ffe24a' })
+    this.coinText = this.add.text(24, 24, '', {
+      fontSize: '24px',
+      color: '#ffe24a',
+      padding: { top: 5 },
+    })
     addMuteButton(this, 164, 58)
     this.winText = this.add
       .text(480, 92, '', { fontSize: '22px', color: '#7CFC00' })
@@ -101,7 +106,7 @@ export class MainScene extends Phaser.Scene {
 
     // 天井メーター（右上）: 残りが減るほどバーが縮む。ラッシュ確定までの距離を明言する
     this.ceilingText = this.add
-      .text(936, 24, '', { fontSize: '18px', color: '#ff9cee' })
+      .text(936, 24, '', { fontSize: '18px', color: '#ff9cee', padding: { top: 4 } })
       .setOrigin(1, 0)
     this.add.rectangle(836, 58, 200, 12, 0x000000, 0.5).setOrigin(0.5, 0)
     this.ceilingBar = this.add
@@ -436,10 +441,19 @@ export class MainScene extends Phaser.Scene {
       this.celebrate(reward.coins)
     } else {
       const payout = payoutFor(this.currentRole, BET)
+      const eggs = eggsFor(this.currentRole)
+      const parts: string[] = []
       if (payout > 0) {
         gameState.coins += payout
-        this.winText.setText(`+${payout} コイン`)
-        this.celebrate(payout)
+        parts.push(`+${payout} コイン`)
+      }
+      if (eggs > 0) {
+        gameState.eggs += eggs
+        parts.push(`タマゴ +${eggs}！（育成画面で孵化）`)
+      }
+      if (parts.length > 0) {
+        this.winText.setText(parts.join('　'))
+        this.celebrate(Math.max(payout, BET))
       }
     }
     this.refreshCoinUi()

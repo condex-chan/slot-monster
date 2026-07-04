@@ -26,7 +26,7 @@ export class OddsScene extends Phaser.Scene {
     bgm.enter(this, 'Odds')
     fadeIn(this)
     this.add
-      .text(480, 36, '確率表', { fontSize: '26px', color: '#ffd700' })
+      .text(480, 36, '確率表', { fontSize: '26px', color: '#ffd700', padding: { top: 5 } })
       .setOrigin(0.5)
 
     const header = { fontSize: '16px', color: '#8899aa' }

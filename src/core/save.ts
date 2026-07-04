@@ -11,6 +11,13 @@ export const SAVE_KEY = 'slot-monster-save-v1'
 export interface StorageLike {
   getItem(key: string): string | null
   setItem(key: string, value: string): void
+  removeItem?(key: string): void
+}
+
+/** セーブを消す（タイトルの「はじめから」用）。removeItem の無い環境は空文字で潰す */
+export function clearSave(storage: StorageLike): void {
+  if (storage.removeItem) storage.removeItem(SAVE_KEY)
+  else storage.setItem(SAVE_KEY, '')
 }
 
 export function saveState(state: GameState, storage: StorageLike): void {
@@ -122,5 +129,13 @@ export function hasSavedGame(): boolean {
     return hasSave(window.localStorage)
   } catch {
     return false
+  }
+}
+
+export function clearSavedGame(): void {
+  try {
+    clearSave(window.localStorage)
+  } catch {
+    /* 消せない環境では諦める */
   }
 }

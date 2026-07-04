@@ -23,6 +23,7 @@ export class DexScene extends Phaser.Scene {
       .text(480, 36, `図鑑（${found} / ${SPECIES.length}）`, {
         fontSize: '26px',
         color: '#ffd700',
+        padding: { top: 5 },
       })
       .setOrigin(0.5)
 

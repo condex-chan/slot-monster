@@ -46,7 +46,7 @@ export class RosterScene extends Phaser.Scene {
     this.partyLabels = []
 
     this.add
-      .text(480, 32, '育成・編成', { fontSize: '26px', color: '#ffd700' })
+      .text(480, 32, '育成・編成', { fontSize: '26px', color: '#ffd700', padding: { top: 5 } })
       .setOrigin(0.5)
 
     for (let i = 0; i < 3; i++) {
@@ -71,7 +71,11 @@ export class RosterScene extends Phaser.Scene {
 
     this.rosterContainer = this.add.container(0, 0)
 
-    this.eggText = this.add.text(24, 24, '', { fontSize: '20px', color: '#ffe24a' })
+    this.eggText = this.add.text(24, 24, '', {
+      fontSize: '20px',
+      color: '#ffe24a',
+      padding: { top: 4 },
+    })
     addButton(this, 64, 64, '孵化する', {
       fontSize: 18,
       color: '#2e7d32',

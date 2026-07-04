@@ -10,9 +10,13 @@ const JINGLE_VOLUME = 0.6
 class BgmPlayer {
   private sound: Phaser.Sound.BaseSound | null = null
   private track: BgmTrack | null = null
+  private jingle: Phaser.Sound.BaseSound | null = null
 
   /** シーン入場時に呼ぶ。必要ならフェードで切り替える */
   enter(scene: Phaser.Scene, sceneKey: string): void {
+    // 鳴り残っているジングルは必ず止める（勝利→メイン復帰でBGMと重ならないように）
+    this.fadeOutSound(scene, this.jingle)
+    this.jingle = null
     const { stop, play } = bgmTransition(this.track, sceneKey)
     if (stop) this.fadeOutCurrent(scene)
     if (play === null) {
@@ -27,25 +31,31 @@ class BgmPlayer {
     this.sound = sound
   }
 
-  /** 勝利ジングル: BGMを止めて一度だけ鳴らす。次のシーン入場で通常BGMに戻る */
+  /** 勝利ジングル: BGMを止めて一度だけ鳴らす。次のシーン入場でフェードアウトされ通常BGMに戻る */
   victoryJingle(scene: Phaser.Scene): void {
     this.fadeOutCurrent(scene)
     this.track = null
     if (!scene.cache.audio.exists(JINGLE_WIN)) return
-    scene.sound.add(JINGLE_WIN, { volume: JINGLE_VOLUME }).play()
+    const jingle = scene.sound.add(JINGLE_WIN, { volume: JINGLE_VOLUME })
+    jingle.play()
+    this.jingle = jingle
   }
 
   private fadeOutCurrent(scene: Phaser.Scene): void {
     const old = this.sound
     this.sound = null
-    if (!old) return
+    this.fadeOutSound(scene, old)
+  }
+
+  private fadeOutSound(scene: Phaser.Scene, sound: Phaser.Sound.BaseSound | null): void {
+    if (!sound) return
     scene.tweens.add({
-      targets: old,
+      targets: sound,
       volume: 0,
       duration: FADE_MS,
       onComplete: () => {
-        old.stop()
-        old.destroy()
+        sound.stop()
+        sound.destroy()
       },
     })
   }

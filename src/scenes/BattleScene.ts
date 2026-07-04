@@ -8,10 +8,11 @@ import {
   type BoostKind,
 } from '../core/battle'
 import { getInstance } from '../core/collection'
+import { isAutoUnlocked } from '../core/autospin'
 import { advanceFloor, isBossFloor } from '../core/floors'
 import { drawRole } from '../core/slot'
 import { REEL_STRIP, resolveOutcome, type Outcome } from '../core/reels'
-import { BET, canSpin, payoutFor } from '../core/economy'
+import { BET, canSpin, eggsFor, payoutFor } from '../core/economy'
 import { applyRewards, computeRewards } from '../core/rewards'
 import { nextGuideStep, shouldShowBoostGuide } from '../core/onboarding'
 import { persistToLocalStorage } from '../core/save'
@@ -83,6 +84,7 @@ export class BattleScene extends Phaser.Scene {
       .text(480, 44, `バトルラッシュ！ ${gameState.floor}F${bossMark}`, {
         fontSize: '34px',
         color: '#ff5fd7',
+        padding: { top: 6 },
       })
       .setOrigin(0.5)
 
@@ -110,6 +112,26 @@ export class BattleScene extends Phaser.Scene {
 
     this.createMiniSlot()
     if (shouldShowBoostGuide(gameState.guide)) this.showBoostGuide()
+    // オート解放済み+ONならバトル中のミニスロットも自動で回す（メインのオートと同じ扱い）
+    if (this.autoBattleMode) this.time.delayedCall(900, () => this.autoBattleTick())
+  }
+
+  private get autoBattleMode(): boolean {
+    return gameState.autoSpin && isAutoUnlocked(gameState)
+  }
+
+  /** オート時のバトルスピン: 定期的にスピン→順に停止。終局か資金切れで止まる */
+  private autoBattleTick() {
+    if (!this.autoBattleMode || this.sim.over) return
+    if (this.slotPhase === 'idle' && canSpin(gameState.coins, BET)) {
+      this.startBattleSpin()
+      ;[400, 750, 1100].forEach((delay) => {
+        this.time.delayedCall(delay, () => {
+          if (this.slotPhase === 'spinning') this.stopNextCell()
+        })
+      })
+    }
+    this.time.delayedCall(1600, () => this.autoBattleTick())
   }
 
   /** 説明を閉じて完了扱いにする（保存は直後の保存フックに任せる場合もある） */
@@ -161,7 +183,11 @@ export class BattleScene extends Phaser.Scene {
     this.slotCells = []
     this.slotTimers = [null, null, null]
     this.slotPhase = 'idle'
-    this.coinText = this.add.text(24, 24, '', { fontSize: '20px', color: '#ffe24a' })
+    this.coinText = this.add.text(24, 24, '', {
+      fontSize: '20px',
+      color: '#ffe24a',
+      padding: { top: 4 },
+    })
     this.add.rectangle(480, SLOT_Y2, 260, 72, 0x000000, 0.45)
     for (let i = 0; i < 3; i++) {
       this.slotCells.push(
@@ -236,6 +262,12 @@ export class BattleScene extends Phaser.Scene {
     const payout = payoutFor(this.slotRole, BET)
     if (payout > 0) {
       gameState.coins += payout
+      sfx.win()
+    }
+    const eggs = eggsFor(this.slotRole)
+    if (eggs > 0) {
+      gameState.eggs += eggs
+      this.showBanner('タマゴ獲得！', '#ffe24a')
       sfx.win()
     }
     if (this.slotRole === 'sword' || this.slotRole === 'heart' || this.slotRole === 'star') {
