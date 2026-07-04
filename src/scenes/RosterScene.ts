@@ -1,8 +1,10 @@
 import Phaser from 'phaser'
 import { mulberry32, type Rng } from '../core/rng'
 import { assignToParty, getInstance, hatchEgg, totalStats } from '../core/collection'
+import { feed } from '../core/feeding'
 import { MIN_ROSTER_FOR_FUSION, fuse } from '../core/fusion'
 import { gameState } from '../core/state'
+import { MATERIALS } from '../data/materials'
 import { SKILLS, getSpecies } from '../data/monsters'
 import { monsterTextureKey } from '../assets/keys'
 
@@ -24,6 +26,7 @@ export class RosterScene extends Phaser.Scene {
   private fusionPicks: string[] = []
   private fusionButton!: Phaser.GameObjects.Text
   private skillPanel: Phaser.GameObjects.Container | null = null
+  private materialButtons = new Map<string, Phaser.GameObjects.Text>()
 
   constructor() {
     super('Roster')
@@ -90,6 +93,23 @@ export class RosterScene extends Phaser.Scene {
     this.infoText = this.add
       .text(480, 512, '', { fontSize: '16px', color: '#9cd8ff' })
       .setOrigin(0.5)
+
+    // 餌やり: 選択中の個体に素材を与える（素材種別と上昇量は data/materials.ts）
+    this.materialButtons.clear()
+    MATERIALS.forEach((mat, i) => {
+      const btn = this.add
+        .text(190 + i * 195, 478, '', {
+          fontSize: '14px',
+          color: '#ffffff',
+          backgroundColor: '#5d4037',
+          padding: { x: 8, y: 4 },
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true })
+      btn.on('pointerdown', () => this.feedSelected(mat.id))
+      this.materialButtons.set(mat.id, btn)
+    })
+    this.refreshMaterialUi()
 
     const back = this.add
       .text(884, 40, 'もどる', {
@@ -163,6 +183,30 @@ export class RosterScene extends Phaser.Scene {
     this.eggText.setText(`タマゴ ×${gameState.eggs}`)
   }
 
+  private refreshMaterialUi() {
+    for (const mat of MATERIALS) {
+      const btn = this.materialButtons.get(mat.id)
+      if (!btn) continue
+      const count = gameState.materials[mat.id] ?? 0
+      btn.setText(`${mat.label} ×${count}`)
+      const usable = count > 0 && this.selectedUid !== null && !this.fusionMode
+      if (usable) {
+        btn.setInteractive({ useHandCursor: true })
+        btn.setAlpha(1)
+      } else {
+        btn.disableInteractive()
+        btn.setAlpha(0.45)
+      }
+    }
+  }
+
+  private feedSelected(materialId: (typeof MATERIALS)[number]['id']) {
+    if (!this.selectedUid || this.fusionMode) return
+    if ((gameState.materials[materialId] ?? 0) <= 0) return
+    feed(gameState, this.selectedUid, materialId)
+    this.select(this.selectedUid) // ステータス表示を更新
+  }
+
   private select(uid: string) {
     if (this.fusionMode) {
       this.pickFusionParent(uid)
@@ -175,6 +219,7 @@ export class RosterScene extends Phaser.Scene {
       `${getSpecies(m.speciesId).label}  HP${s.hp} こうげき${s.atk} ぼうぎょ${s.def} すばやさ${s.spd}  わざ:${SKILLS[m.skillId].label}`,
     )
     this.rebuildRoster()
+    this.refreshMaterialUi()
   }
 
   // ---- 配合フロー: モード開始 → 親2体選択 → 継承スキル選択 → 実行 ----
@@ -190,6 +235,7 @@ export class RosterScene extends Phaser.Scene {
     this.fusionButton.setText(this.fusionMode ? '配合をやめる' : '配合する')
     this.infoText.setText(this.fusionMode ? '親にする2体を選んでください' : '')
     this.rebuildRoster()
+    this.refreshMaterialUi()
   }
 
   private pickFusionParent(uid: string) {
