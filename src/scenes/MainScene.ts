@@ -1,7 +1,14 @@
 import Phaser from 'phaser'
 import { mulberry32, type Rng } from '../core/rng'
 import { drawRole } from '../core/slot'
-import { isReach, resolveOutcome, type Outcome } from '../core/reels'
+import type { Outcome } from '../core/reels'
+import {
+  LINE_LABELS,
+  resolveSpinLines,
+  rowSymbolFor,
+  type BetLines,
+  type LineIndex,
+} from '../core/lines'
 import {
   CENTER_SLOT,
   SLOT_COUNT,
@@ -65,9 +72,14 @@ export class MainScene extends Phaser.Scene {
   private ceilingBar!: Phaser.GameObjects.Rectangle
   private guideText!: Phaser.GameObjects.Text
   // リーチ・揃い演出（操作はブロックしない）
-  private lineFrame!: Phaser.GameObjects.Rectangle
-  private lineBlinkTween: Phaser.Tweens.Tween | null = null
+  private lineFrames: Phaser.GameObjects.Rectangle[] = []
+  private lineBlinkTweens: Phaser.Tweens.Tween[] = []
   private winTweens: Phaser.Tweens.Tween[] = []
+  // ベットライン（1=中央10コイン / 3=上中下30コイン）。スピン中は開始時の値で確定
+  private betButton!: Phaser.GameObjects.Text
+  private spinBetLines: BetLines = 1
+  private spinCost = BET
+  private winLine: LineIndex = 1
 
   constructor() {
     super('Main')
@@ -131,7 +143,7 @@ export class MainScene extends Phaser.Scene {
       for (let slot = 0; slot < SLOT_COUNT; slot++) {
         column.push(
           this.add
-            .image(REEL_X[reel], 0, symbolTextureKey(bandSymbolAt(0, slot)))
+            .image(REEL_X[reel], 0, symbolTextureKey(bandSymbolAt(reel, 0, slot)))
             .setMask(bandMask),
         )
       }
@@ -140,9 +152,10 @@ export class MainScene extends Phaser.Scene {
       this.bandPos[reel] = reel * 3
       this.renderBand(reel)
     }
-    this.lineFrame = this.add
-      .rectangle(480, 270, CELL_W * 3 + 40, 100)
-      .setStrokeStyle(3, 0xffd700, 0.9)
+    this.lineFrames = [170, 270, 370].map((y) =>
+      this.add.rectangle(480, y, CELL_W * 3 + 40, 100).setStrokeStyle(3, 0xffd700, 0.9),
+    )
+    this.refreshLineFrames()
 
     this.button = addButton(this, 480, 480, 'スピン', {
       fontSize: 32,
@@ -152,6 +165,13 @@ export class MainScene extends Phaser.Scene {
 
     this.createPartyDisplay()
     this.createAutoButton()
+    this.betButton = addButton(this, 772, 434, '', {
+      fontSize: 15,
+      color: '#00695c',
+      padding: { x: 8, y: 6 },
+      onClick: () => this.toggleBet(),
+    })
+    this.refreshBetUi()
     // 初回オンボーディング: 段階に応じた1行ガイド（完了後は出ない）
     this.guideText = this.add
       .text(480, 437, '', {
@@ -206,7 +226,7 @@ export class MainScene extends Phaser.Scene {
   private scheduleAutoSpin() {
     this.time.delayedCall(450, () => {
       if (!this.autoMode || this.phase !== 'idle') return
-      if (!canSpin(gameState.coins, BET)) {
+      if (!canSpin(gameState.coins, BET * gameState.betLines)) {
         gameState.autoSpin = false
         this.refreshAutoUi()
         return
@@ -257,7 +277,8 @@ export class MainScene extends Phaser.Scene {
   /** 残高表示とスピンボタンの有効/無効を状態から再計算する */
   private refreshCoinUi() {
     this.coinText.setText(`コイン: ${gameState.coins}`)
-    const spinnable = this.phase === 'spinning' || canSpin(gameState.coins, BET)
+    const spinnable =
+      this.phase === 'spinning' || canSpin(gameState.coins, BET * gameState.betLines)
     if (spinnable) {
       this.button.setInteractive({ useHandCursor: true })
       this.button.setAlpha(1)
@@ -274,7 +295,7 @@ export class MainScene extends Phaser.Scene {
 
   /** E2E用: 1スピンを即時に完了させる（抽選・払い出し・天井進行は本流と同じ経路） */
   debugSpinOnce(): void {
-    if (this.phase !== 'idle' || !canSpin(gameState.coins, BET)) return
+    if (this.phase !== 'idle' || !canSpin(gameState.coins, BET * gameState.betLines)) return
     this.startSpin()
     for (let i = 0; i < 3; i++) this.stopNextReel(true)
   }
@@ -286,7 +307,7 @@ export class MainScene extends Phaser.Scene {
     for (let slot = 0; slot < SLOT_COUNT; slot++) {
       const img = this.bandImages[reel][slot]
       img.y = BAND_TOP + (slot + shift) * CELL_H
-      img.setTexture(symbolTextureKey(bandSymbolAt(p, slot)))
+      img.setTexture(symbolTextureKey(bandSymbolAt(reel, p, slot)))
     }
   }
 
@@ -299,12 +320,19 @@ export class MainScene extends Phaser.Scene {
   }
 
   private startSpin() {
-    if (!canSpin(gameState.coins, BET)) return
-    gameState.coins -= BET
+    const cost = BET * gameState.betLines
+    if (!canSpin(gameState.coins, cost)) return
+    gameState.coins -= cost
+    this.spinCost = cost
+    this.spinBetLines = gameState.betLines
     this.winText.setText('')
-    // 当選役はスピン開始時に確定（タイミング非依存）
+    // 当選役はスピン開始時に確定（タイミング非依存）。3ライン時は当選ラインも決まる
     this.currentRole = drawRole(this.rng)
-    this.outcome = resolveOutcome(this.currentRole, this.rng)
+    const result = resolveSpinLines(this.currentRole, this.spinBetLines, this.rng)
+    this.outcome = result.centers
+    this.winLine = result.line
+    this.betButton.disableInteractive()
+    this.betButton.setAlpha(0.5)
     this.nextToStop = 0
     this.stoppedCount = 0
     this.flashSuccess = false
@@ -330,7 +358,7 @@ export class MainScene extends Phaser.Scene {
       this.flashSuccess = resolveFlashSuccess(this.autoMode, this.flashLit)
       this.stopFlashCue()
     }
-    const target = snapPositionFor(this.outcome[reel], this.bandPos[reel] + MIN_SNAP_TRAVEL)
+    const target = snapPositionFor(reel, this.outcome[reel], this.bandPos[reel] + MIN_SNAP_TRAVEL)
     if (immediate) {
       this.bandPos[reel] = target
       this.renderBand(reel)
@@ -364,15 +392,18 @@ export class MainScene extends Phaser.Scene {
     if (this.stoppedCount === 2 && this.currentRole === 'flash') {
       this.startFlashCue()
     }
-    if (this.stoppedCount === 2 && isReach(this.outcome) && this.bandSpeed[2] > 0) {
-      // リーチ演出: 3リール目の帯を遅くし、有効ライン枠を点滅させて期待の間を作る
+    const reachRows = this.stoppedCount === 2 ? this.reachRows() : []
+    if (reachRows.length > 0 && this.bandSpeed[2] > 0) {
+      // リーチ演出: 3リール目の帯を遅くし、リーチ中ラインの枠を点滅させて期待の間を作る
       this.bandSpeed[2] = REACH_SPEED
-      this.startLineBlink()
+      this.startLineBlink(reachRows)
     }
     if (this.stoppedCount === 3) {
       this.stopLineBlink()
       this.phase = 'idle'
       this.button.setText('スピン')
+      this.betButton.setInteractive({ useHandCursor: true })
+      this.betButton.setAlpha(1)
       this.applyPayout()
       if (this.currentRole !== 'none') this.emphasizeWinLine()
     }
@@ -380,28 +411,47 @@ export class MainScene extends Phaser.Scene {
 
   // ---- リーチ・揃い演出（tweenのみ。入力はブロックしない） ----
 
-  private startLineBlink() {
-    this.lineFrame.setStrokeStyle(4, 0xff5fd7, 1)
-    this.lineBlinkTween = this.tweens.add({
-      targets: this.lineFrame,
-      alpha: 0.25,
-      duration: 180,
-      yoyo: true,
-      repeat: -1,
+  /** 先に止まった2リールが一致している（=リーチ中の）有効ライン */
+  private reachRows(): LineIndex[] {
+    if (!this.outcome) return []
+    const rows: LineIndex[] = this.spinBetLines === 3 ? [0, 1, 2] : [1]
+    return rows.filter(
+      (row) =>
+        rowSymbolFor(0, this.outcome![0], row) === rowSymbolFor(1, this.outcome![1], row),
+    )
+  }
+
+  /** 有効ライン枠の表示: 1ライン=中央のみ、3ライン=上中下 */
+  private refreshLineFrames() {
+    this.lineFrames.forEach((frame, row) => {
+      frame.setVisible(gameState.betLines === 3 || row === 1)
     })
   }
 
-  private stopLineBlink() {
-    this.lineBlinkTween?.remove()
-    this.lineBlinkTween = null
-    this.lineFrame.setAlpha(1)
-    this.lineFrame.setStrokeStyle(3, 0xffd700, 0.9)
+  private startLineBlink(rows: LineIndex[]) {
+    for (const row of rows) {
+      const frame = this.lineFrames[row]
+      frame.setStrokeStyle(4, 0xff5fd7, 1)
+      this.lineBlinkTweens.push(
+        this.tweens.add({ targets: frame, alpha: 0.25, duration: 180, yoyo: true, repeat: -1 }),
+      )
+    }
   }
 
-  /** 揃い時: 有効ライン上の3図柄を拡大点滅で強調する */
+  private stopLineBlink() {
+    for (const tween of this.lineBlinkTweens) tween.remove()
+    this.lineBlinkTweens = []
+    for (const frame of this.lineFrames) {
+      frame.setAlpha(1)
+      frame.setStrokeStyle(3, 0xffd700, 0.9)
+    }
+  }
+
+  /** 揃い時: 当選ライン上の3図柄を拡大点滅で強調する */
   private emphasizeWinLine() {
+    const slot = CENTER_SLOT + (this.winLine - 1)
     for (let reel = 0; reel < 3; reel++) {
-      const img = this.bandImages[reel][CENTER_SLOT]
+      const img = this.bandImages[reel][slot]
       this.winTweens.push(
         this.tweens.add({
           targets: img,
@@ -424,10 +474,25 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  private toggleBet() {
+    if (this.phase !== 'idle') return
+    gameState.betLines = gameState.betLines === 3 ? 1 : 3
+    persistToLocalStorage(gameState)
+    this.refreshBetUi()
+    this.refreshLineFrames()
+    this.refreshCoinUi()
+  }
+
+  private refreshBetUi() {
+    const three = gameState.betLines === 3
+    this.betButton.setText(three ? '3ライン(30)' : '1ライン(10)')
+    setButtonColor(this.betButton, three ? '#c2185b' : '#00695c')
+  }
+
   /** 全リール停止後に払い出しを反映（表示出目と入金タイミングを一致させる） */
   private applyPayout() {
     if (this.currentRole === 'flash') {
-      const reward = flashReward(this.flashSuccess, BET, this.rng)
+      const reward = flashReward(this.flashSuccess, this.spinCost, this.rng)
       gameState.coins += reward.coins
       for (const id of reward.materials) {
         gameState.materials[id] = (gameState.materials[id] ?? 0) + 1
@@ -440,9 +505,12 @@ export class MainScene extends Phaser.Scene {
       )
       this.celebrate(reward.coins)
     } else {
-      const payout = payoutFor(this.currentRole, BET)
+      const payout = payoutFor(this.currentRole, this.spinCost)
       const eggs = eggsFor(this.currentRole)
       const parts: string[] = []
+      if (this.currentRole !== 'none' && this.spinBetLines === 3) {
+        parts.push(`【${LINE_LABELS[this.winLine]}】`)
+      }
       if (payout > 0) {
         gameState.coins += payout
         parts.push(`+${payout} コイン`)
@@ -452,7 +520,7 @@ export class MainScene extends Phaser.Scene {
         parts.push(`タマゴ +${eggs}！（育成画面で孵化）`)
       }
       if (parts.length > 0) {
-        this.winText.setText(parts.join('　'))
+        this.winText.setText(parts.join(' '))
         this.celebrate(Math.max(payout, BET))
       }
     }

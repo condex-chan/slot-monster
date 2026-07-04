@@ -60,6 +60,12 @@ export class OddsScene extends Phaser.Scene {
       fontSize: '18px',
       color: '#8899aa',
     })
+    this.add.text(
+      160,
+      116 + (PAYTABLE.length + 1) * 38 + 6,
+      '3ラインベット(30コイン): 当選確率は同じ・払い出し3倍・当たりは上中下いずれか1ラインに出現',
+      { fontSize: '14px', color: '#9cd8ff' },
+    )
 
     addButton(this, 884, 40, 'もどる', {
       padding: { x: 16, y: 6 },

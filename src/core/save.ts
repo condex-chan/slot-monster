@@ -2,6 +2,7 @@
 // 壊れた・型が合わないデータは黙って初期状態にフォールバックする
 import { createInitialState, type GameState } from './state'
 import { normalizeMuted } from './audio'
+import { normalizeBetLines } from './lines'
 import { normalizeGuide } from './onboarding'
 import { MATERIALS } from '../data/materials'
 import { SKILLS, SPECIES } from '../data/monsters'
@@ -53,6 +54,8 @@ export function loadState(storage: StorageLike): GameState {
       guide: normalizeGuide((data as { guide?: unknown }).guide),
       // ミュートも後付けフィールド: 無ければ音あり
       muted: normalizeMuted((data as { muted?: unknown }).muted),
+      // ベットライン数も後付け: 無ければ1ライン
+      betLines: normalizeBetLines((data as { betLines?: unknown }).betLines),
     }
   } catch {
     return createInitialState()
