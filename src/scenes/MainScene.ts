@@ -74,22 +74,28 @@ export class MainScene extends Phaser.Scene {
     bgm.enter(this, 'Main')
     fadeIn(this)
 
+    // ヘッダー中央: このゲームの目的（階層を登る）を最前面の情報にする
     this.add
-      .text(480, 40, 'モンスロ（仮）', { fontSize: '28px', color: '#ffd700' })
+      .text(480, 30, `ダンジョン ${gameState.floor}F`, {
+        fontSize: '30px',
+        color: '#ffd700',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+    this.add
+      .text(480, 62, `最高記録 ${gameState.bestFloor}F ── スロットで稼ぎ、ラッシュで登り、配合で強くなる`, {
+        fontSize: '14px',
+        color: '#9cd8ff',
+      })
       .setOrigin(0.5)
 
     this.coinText = this.add.text(24, 24, '', { fontSize: '24px', color: '#ffe24a' })
-    this.add.text(
-      24,
-      56,
-      `階層 ${gameState.floor}F ／ 最高 ${gameState.bestFloor}F`,
-      { fontSize: '18px', color: '#9cd8ff' },
-    )
+    addMuteButton(this, 164, 58)
     this.winText = this.add
-      .text(480, 90, '', { fontSize: '22px', color: '#7CFC00' })
+      .text(480, 92, '', { fontSize: '22px', color: '#7CFC00' })
       .setOrigin(0.5)
 
-    // 天井メーター（右上）: 残りが減るほどバーが縮む
+    // 天井メーター（右上）: 残りが減るほどバーが縮む。ラッシュ確定までの距離を明言する
     this.ceilingText = this.add
       .text(936, 24, '', { fontSize: '18px', color: '#ff9cee' })
       .setOrigin(1, 0)
@@ -98,7 +104,11 @@ export class MainScene extends Phaser.Scene {
       .rectangle(736, 58, 200, 12, 0xff5fd7)
       .setOrigin(0, 0)
     this.refreshCeilingUi()
-    addMuteButton(this, 936, 80)
+    // 扉図柄の価値をメーター直下で常時説明（天井以外のもう1つの突入経路）
+    this.add.image(714, 94, symbolTextureKey('door')).setScale(0.36)
+    this.add
+      .text(936, 86, '扉3つ でも ラッシュ突入！', { fontSize: '14px', color: '#ff9cee' })
+      .setOrigin(1, 0)
 
     // リール窓と中央有効ライン。図柄帯はマスクで窓外を隠しスクロールさせる
     const maskShape = this.make
@@ -462,7 +472,7 @@ export class MainScene extends Phaser.Scene {
 
   private refreshCeilingUi() {
     const remaining = spinsUntilCeiling(gameState.spinsSinceBattle)
-    this.ceilingText.setText(`天井まで あと${remaining}スピン`)
+    this.ceilingText.setText(`あと${remaining}スピンでラッシュ確定`)
     this.ceilingBar.width = 200 * (remaining / CEILING_SPINS)
   }
 
