@@ -326,8 +326,9 @@ export class MainScene extends Phaser.Scene {
     this.spinCost = cost
     this.spinBetLines = gameState.betLines
     this.winText.setText('')
-    // 当選役はスピン開始時に確定（タイミング非依存）。3ライン時は当選ラインも決まる
-    this.currentRole = drawRole(this.rng)
+    // 当選役はスピン開始時に確定（タイミング非依存）。3ライン時は当選ラインも決まり、
+    // レア役（扉/タマゴ/フラッシュ）の確率が上がる
+    this.currentRole = drawRole(this.rng, this.spinBetLines)
     const result = resolveSpinLines(this.currentRole, this.spinBetLines, this.rng)
     this.outcome = result.centers
     this.winLine = result.line
