@@ -7,3 +7,4 @@ dist/
 *.local
 .claude/ralph-loop.local.md
 dist-e2e/
+slot-monster-v*.zip

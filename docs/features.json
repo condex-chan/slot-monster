@@ -144,6 +144,6 @@
     "priority": 21,
     "description": "リリース成果物: npm run build で itch.io アップロード可能な dist/ 一式（相対パス動作）。zip化スクリプトと操作説明README",
     "steps": ["dist/index.html をfile://以外の静的サーバで開いて動作", "scripts/package.sh で zip 生成", "README.md に操作説明とクレジット欄"],
-    "passes": false
+    "passes": true
   }
 ]
