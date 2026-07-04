@@ -13,6 +13,7 @@ import { drawRole } from '../core/slot'
 import { REEL_STRIP, resolveOutcome, type Outcome } from '../core/reels'
 import { BET, canSpin, payoutFor } from '../core/economy'
 import { applyRewards, computeRewards } from '../core/rewards'
+import { persistToLocalStorage } from '../core/save'
 import { gameState } from '../core/state'
 import { getMaterial } from '../data/materials'
 import type { RoleId } from '../data/paytable'
@@ -283,6 +284,7 @@ export class BattleScene extends Phaser.Scene {
     applyRewards(gameState, rewards)
     advanceFloor(gameState, won)
     this.spentCoins = 0
+    persistToLocalStorage(gameState) // バトル結果確定で自動保存
     this.refreshSlotUi()
 
     this.add.rectangle(480, 270, 460, 320, 0x1a1026, 0.92)

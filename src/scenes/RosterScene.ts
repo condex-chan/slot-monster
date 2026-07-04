@@ -3,6 +3,7 @@ import { mulberry32, type Rng } from '../core/rng'
 import { assignToParty, getInstance, hatchEgg, totalStats } from '../core/collection'
 import { feed } from '../core/feeding'
 import { MIN_ROSTER_FOR_FUSION, fuse } from '../core/fusion'
+import { persistToLocalStorage } from '../core/save'
 import { gameState } from '../core/state'
 import { MATERIALS } from '../data/materials'
 import { SKILLS, getSpecies } from '../data/monsters'
@@ -204,6 +205,7 @@ export class RosterScene extends Phaser.Scene {
     if (!this.selectedUid || this.fusionMode) return
     if ((gameState.materials[materialId] ?? 0) <= 0) return
     feed(gameState, this.selectedUid, materialId)
+    persistToLocalStorage(gameState)
     this.select(this.selectedUid) // ステータス表示を更新
   }
 
@@ -295,6 +297,7 @@ export class RosterScene extends Phaser.Scene {
     const [uidA, uidB] = this.fusionPicks
     this.closeSkillPanel()
     const child = fuse(gameState, uidA, uidB, skillId)
+    persistToLocalStorage(gameState)
     this.fusionMode = false
     this.fusionPicks = []
     this.selectedUid = null
@@ -322,6 +325,7 @@ export class RosterScene extends Phaser.Scene {
   private onPartySlot(slot: number) {
     if (!this.selectedUid) return
     assignToParty(gameState, slot, this.selectedUid)
+    persistToLocalStorage(gameState)
     this.refreshParty()
     this.rebuildRoster()
   }
@@ -330,6 +334,7 @@ export class RosterScene extends Phaser.Scene {
     const born = hatchEgg(gameState, this.rng)
     this.refreshEggUi()
     if (!born) return
+    persistToLocalStorage(gameState)
     this.rebuildRoster()
     const banner = this.add
       .text(480, 230, `${getSpecies(born.speciesId).label} が生まれた！`, {

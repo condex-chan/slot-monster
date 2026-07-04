@@ -6,6 +6,7 @@ import { BET, canSpin, payoutFor } from '../core/economy'
 import { CEILING_SPINS, entersBattle, nextCeilingCount, spinsUntilCeiling } from '../core/ceiling'
 import { flashReward } from '../core/flash'
 import { AUTO_UNLOCK_FLOOR, isAutoUnlocked, resolveFlashSuccess } from '../core/autospin'
+import { persistToLocalStorage } from '../core/save'
 import { gameState } from '../core/state'
 import { getMaterial } from '../data/materials'
 import type { RoleId } from '../data/paytable'
@@ -140,6 +141,7 @@ export class MainScene extends Phaser.Scene {
   private toggleAuto() {
     gameState.autoSpin = !gameState.autoSpin
     this.refreshAutoUi()
+    persistToLocalStorage(gameState)
     if (this.autoMode && this.phase === 'idle') this.scheduleAutoSpin()
   }
 
@@ -336,6 +338,7 @@ export class MainScene extends Phaser.Scene {
     const entered = entersBattle(this.currentRole, gameState.spinsSinceBattle)
     gameState.spinsSinceBattle = nextCeilingCount(entered, gameState.spinsSinceBattle)
     this.refreshCeilingUi()
+    persistToLocalStorage(gameState) // スピン結果確定ごとに自動保存
     if (entered) {
       // 出目を見せてから遷移。待ち時間中の誤操作は無効化
       this.button.disableInteractive()
