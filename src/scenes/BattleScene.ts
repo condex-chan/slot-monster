@@ -1,8 +1,18 @@
 import Phaser from 'phaser'
 import { mulberry32, type Rng } from '../core/rng'
-import { BattleSim, createEnemyGroup, makeCombatant, type BattleEvent } from '../core/battle'
+import {
+  BattleSim,
+  createEnemyGroup,
+  makeCombatant,
+  type BattleEvent,
+  type BoostKind,
+} from '../core/battle'
+import { drawRole } from '../core/slot'
+import { REEL_STRIP, resolveOutcome, type Outcome } from '../core/reels'
+import { BET, canSpin, payoutFor } from '../core/economy'
 import { gameState } from '../core/state'
-import { monsterTextureKey } from '../assets/keys'
+import type { RoleId } from '../data/paytable'
+import { monsterTextureKey, symbolTextureKey } from '../assets/keys'
 
 // バトル画面: BattleSim のイベント列を再生するだけ。戦闘の意思決定は core/battle.ts
 const PARTY_X = 220
@@ -16,11 +26,23 @@ interface CombatantView {
   maxHp: number
 }
 
+const SLOT_X = [400, 480, 560]
+const SLOT_Y2 = 492
+
 export class BattleScene extends Phaser.Scene {
   private sim!: BattleSim
   private rng!: Rng
   private views = new Map<string, CombatantView>()
   private ticker: Phaser.Time.TimerEvent | null = null
+  // ラッシュ中ミニスロット
+  private slotCells: Phaser.GameObjects.Image[] = []
+  private slotTimers: (Phaser.Time.TimerEvent | null)[] = [null, null, null]
+  private slotButton!: Phaser.GameObjects.Text
+  private slotPhase: 'idle' | 'spinning' = 'idle'
+  private slotStopped = 0
+  private slotOutcome: Outcome | null = null
+  private slotRole: RoleId = 'none'
+  private coinText!: Phaser.GameObjects.Text
 
   constructor() {
     super('Battle')
@@ -58,6 +80,119 @@ export class BattleScene extends Phaser.Scene {
       loop: true,
       callback: () => this.playStep(),
     })
+
+    this.createMiniSlot()
+  }
+
+  // ---- ラッシュ中ミニスロット（スピン継続でブースト） ----
+
+  private createMiniSlot() {
+    this.slotCells = []
+    this.slotTimers = [null, null, null]
+    this.slotPhase = 'idle'
+    this.coinText = this.add.text(24, 24, '', { fontSize: '20px', color: '#ffe24a' })
+    this.add.rectangle(480, SLOT_Y2, 260, 72, 0x000000, 0.45)
+    for (let i = 0; i < 3; i++) {
+      this.slotCells.push(
+        this.add.image(SLOT_X[i], SLOT_Y2, symbolTextureKey(REEL_STRIP[i])).setScale(0.6),
+      )
+    }
+    this.slotButton = this.add
+      .text(672, SLOT_Y2, 'スピン', {
+        fontSize: '22px',
+        color: '#ffffff',
+        backgroundColor: '#7a2ea0',
+        padding: { x: 16, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+    this.slotButton.on('pointerdown', () => this.onSlotButton())
+    this.refreshSlotUi()
+  }
+
+  private refreshSlotUi() {
+    this.coinText.setText(`コイン: ${gameState.coins}`)
+    const usable =
+      !this.sim.over && (this.slotPhase === 'spinning' || canSpin(gameState.coins, BET))
+    if (usable) {
+      this.slotButton.setInteractive({ useHandCursor: true })
+      this.slotButton.setAlpha(1)
+    } else {
+      this.slotButton.disableInteractive()
+      this.slotButton.setAlpha(0.4)
+    }
+  }
+
+  private onSlotButton() {
+    if (this.slotPhase === 'idle') this.startBattleSpin()
+    else this.stopNextCell()
+  }
+
+  private startBattleSpin() {
+    if (this.sim.over || !canSpin(gameState.coins, BET)) return
+    gameState.coins -= BET
+    this.slotRole = drawRole(this.rng)
+    this.slotOutcome = resolveOutcome(this.slotRole, this.rng)
+    this.slotStopped = 0
+    this.slotPhase = 'spinning'
+    this.slotButton.setText('ストップ')
+    this.refreshSlotUi()
+    for (let i = 0; i < 3; i++) {
+      this.slotTimers[i] = this.time.addEvent({
+        delay: 60,
+        loop: true,
+        callback: () => {
+          const s = REEL_STRIP[Math.floor(this.rng() * REEL_STRIP.length)]
+          this.slotCells[i].setTexture(symbolTextureKey(s))
+        },
+      })
+    }
+  }
+
+  private stopNextCell() {
+    if (!this.slotOutcome) return
+    const i = this.slotStopped
+    this.slotTimers[i]?.remove()
+    this.slotTimers[i] = null
+    this.slotCells[i].setTexture(symbolTextureKey(this.slotOutcome[i]))
+    this.slotStopped++
+    if (this.slotStopped === 3) {
+      this.slotPhase = 'idle'
+      this.slotButton.setText('スピン')
+      this.settleBattleSpin()
+    }
+  }
+
+  private settleBattleSpin() {
+    const payout = payoutFor(this.slotRole, BET)
+    if (payout > 0) gameState.coins += payout
+    if (this.slotRole === 'sword' || this.slotRole === 'heart' || this.slotRole === 'star') {
+      this.applyBoostWithFx(this.slotRole)
+    }
+    this.refreshSlotUi()
+  }
+
+  /** ブーストを戦闘に反映し、バナー+イベント再生で画面に見せる */
+  private applyBoostWithFx(kind: BoostKind) {
+    if (kind === 'sword') this.showBanner('全員追撃！', '#ff8c42')
+    if (kind === 'heart') this.showBanner('全員回復！', '#7cfc00')
+    const events = this.sim.applyBoost(kind)
+    events.forEach((ev, i) => this.time.delayedCall(i * 170, () => this.playEvent(ev)))
+  }
+
+  private showBanner(message: string, color: string) {
+    const banner = this.add
+      .text(480, 110, message, { fontSize: '34px', color, fontStyle: 'bold' })
+      .setOrigin(0.5)
+      .setScale(0.4)
+    this.tweens.add({ targets: banner, scale: 1, duration: 160, ease: 'Back.out' })
+    this.tweens.add({
+      targets: banner,
+      alpha: 0,
+      delay: 900,
+      duration: 300,
+      onComplete: () => banner.destroy(),
+    })
   }
 
   private playStep() {
@@ -83,6 +218,17 @@ export class BattleScene extends Phaser.Scene {
         this.popDamage(target.img.x, target.img.y - 20, ev.damage)
         break
       }
+      case 'heal': {
+        const target = this.views.get(ev.targetId)
+        if (!target) return
+        target.hpBar.width = HP_BAR_W * (ev.targetHp / target.maxHp)
+        if (ev.amount > 0) this.popHeal(target.img.x, target.img.y - 20, ev.amount)
+        break
+      }
+      case 'skill': {
+        this.showBanner(`${ev.label}！`, '#ffe24a')
+        break
+      }
       case 'defeat': {
         const target = this.views.get(ev.targetId)
         if (target) this.tweens.add({ targets: target.img, alpha: 0.15, duration: 250 })
@@ -91,6 +237,7 @@ export class BattleScene extends Phaser.Scene {
       case 'end': {
         this.ticker?.remove()
         this.ticker = null
+        this.refreshSlotUi()
         this.showResult(ev.winner === 'party')
         break
       }
@@ -98,9 +245,15 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private popDamage(x: number, y: number, damage: number) {
-    const text = this.add
-      .text(x, y, `-${damage}`, { fontSize: '22px', color: '#ff6b6b' })
-      .setOrigin(0.5)
+    this.popText(x, y, `-${damage}`, '#ff6b6b')
+  }
+
+  private popHeal(x: number, y: number, amount: number) {
+    this.popText(x, y, `+${amount}`, '#7cfc00')
+  }
+
+  private popText(x: number, y: number, message: string, color: string) {
+    const text = this.add.text(x, y, message, { fontSize: '22px', color }).setOrigin(0.5)
     this.tweens.add({
       targets: text,
       y: y - 34,

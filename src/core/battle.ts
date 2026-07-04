@@ -1,7 +1,7 @@
 // 自動戦闘エンジン（pure TS・Phaser非依存）。
 // 1ステップ=1行動で進め、演出用イベント列を返す。シーンはイベントを再生するだけ
 import type { Rng } from './rng'
-import { BASE_SPECIES, getSpecies, type SpeciesId } from '../data/monsters'
+import { BASE_SPECIES, SKILLS, getSpecies, type SpeciesId } from '../data/monsters'
 
 export type Side = 'party' | 'enemy'
 
@@ -20,8 +20,15 @@ export interface Combatant {
 
 export type BattleEvent =
   | { type: 'attack'; actorId: string; targetId: string; damage: number; targetHp: number }
+  | { type: 'heal'; targetId: string; amount: number; targetHp: number }
+  | { type: 'skill'; actorId: string; label: string }
   | { type: 'defeat'; targetId: string }
   | { type: 'end'; winner: Side }
+
+/** ラッシュ中のスピンブースト（剣=全員追撃 / ハート=全員回復 / 星=先頭スキル） */
+export type BoostKind = 'sword' | 'heart' | 'star'
+
+export const HEART_HEAL_RATIO = 0.25
 
 export function makeCombatant(speciesId: SpeciesId, side: Side, slot: number): Combatant {
   const s = getSpecies(speciesId)
@@ -77,9 +84,48 @@ export class BattleSim {
     if (this.over) return []
     const actor = this.nextActor()
     if (!actor) return []
+    return this.performAttack(actor)
+  }
+
+  /** スピンブーストを戦闘に反映する（F9）。戦闘終了後は無効 */
+  applyBoost(kind: BoostKind): BattleEvent[] {
+    if (this.over) return []
+    const events: BattleEvent[] = []
+    switch (kind) {
+      case 'sword':
+        for (const member of this.alive('party')) {
+          if (this.over) break
+          events.push(...this.performAttack(member))
+        }
+        break
+      case 'heart':
+        for (const member of this.alive('party')) {
+          events.push(this.healOne(member, Math.round(member.maxHp * HEART_HEAL_RATIO)))
+        }
+        break
+      case 'star': {
+        const lead = this.alive('party')[0]
+        if (!lead) break
+        const skill = SKILLS[lead.skillId]
+        events.push({ type: 'skill', actorId: lead.id, label: skill.label })
+        if (skill.kind === 'attack') {
+          events.push(...this.performAttack(lead, skill.power))
+        } else {
+          for (const member of this.alive('party')) {
+            events.push(this.healOne(member, Math.round(member.maxHp * skill.power)))
+          }
+        }
+        break
+      }
+    }
+    return events
+  }
+
+  private performAttack(actor: Combatant, multiplier = 1): BattleEvent[] {
     const foes = this.alive(actor.side === 'party' ? 'enemy' : 'party')
+    if (foes.length === 0) return []
     const target = foes[Math.floor(this.rng() * foes.length)]
-    const damage = damageOf(actor.atk, target.def, this.rng())
+    const damage = damageOf(actor.atk * multiplier, target.def, this.rng())
     target.hp = Math.max(0, target.hp - damage)
     const events: BattleEvent[] = [
       { type: 'attack', actorId: actor.id, targetId: target.id, damage, targetHp: target.hp },
@@ -92,6 +138,13 @@ export class BattleSim {
       }
     }
     return events
+  }
+
+  private healOne(c: Combatant, amount: number): BattleEvent {
+    const healed = Math.min(c.maxHp, c.hp + amount)
+    const delta = healed - c.hp
+    c.hp = healed
+    return { type: 'heal', targetId: c.id, amount: delta, targetHp: c.hp }
   }
 
   private nextActor(): Combatant | null {
