@@ -6,7 +6,8 @@ import { BET, canSpin, payoutFor } from '../core/economy'
 import { CEILING_SPINS, entersBattle, nextCeilingCount, spinsUntilCeiling } from '../core/ceiling'
 import { gameState } from '../core/state'
 import type { RoleId } from '../data/paytable'
-import { symbolTextureKey } from '../assets/keys'
+import { getSpecies } from '../data/monsters'
+import { monsterTextureKey, symbolTextureKey } from '../assets/keys'
 
 // メイン画面: 表示と入力のみ。抽選・出目解決は src/core/ に委譲する
 const REEL_X = [360, 480, 600]
@@ -79,7 +80,28 @@ export class MainScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
     this.button.on('pointerdown', () => this.onButton())
 
+    this.createPartyDisplay()
     this.refreshCoinUi()
+  }
+
+  /** パーティ3体を左下に表示（待機モーションの上下ゆれ） */
+  private createPartyDisplay() {
+    this.add.text(24, 400, 'パーティ', { fontSize: '16px', color: '#cccccc' })
+    gameState.party.forEach((id, i) => {
+      const x = 80 + i * 82
+      const img = this.add.image(x, 470, monsterTextureKey(id)).setScale(0.75)
+      this.tweens.add({
+        targets: img,
+        y: 462,
+        duration: 700 + i * 90,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      })
+      this.add
+        .text(x, 512, getSpecies(id).label, { fontSize: '13px', color: '#cccccc' })
+        .setOrigin(0.5)
+    })
   }
 
   /** 残高表示とスピンボタンの有効/無効を状態から再計算する */

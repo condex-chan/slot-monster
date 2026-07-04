@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { generateSymbolTextures } from '../assets/textures'
+import { generateMonsterTextures, generateSymbolTextures } from '../assets/textures'
 
 // 起動時の準備（動的テクスチャ生成など）を終えたら Main へ渡す
 export class BootScene extends Phaser.Scene {
@@ -9,6 +9,7 @@ export class BootScene extends Phaser.Scene {
 
   create() {
     generateSymbolTextures(this)
+    generateMonsterTextures(this)
     this.scene.start('Main')
   }
 }
