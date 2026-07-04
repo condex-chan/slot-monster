@@ -11,7 +11,7 @@
     "priority": 2,
     "description": "確率抽選エンジン: design.md の役テーブルに基づく抽選を pure TS モジュールで実装。シード可能 PRNG。vitest で10万試行の分布が期待確率±30%相対誤差内",
     "steps": ["src/core/slot.ts に抽選ロジック", "tests/ に分布検証テスト", "役テーブルは定数モジュールで一元管理"],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F3",
