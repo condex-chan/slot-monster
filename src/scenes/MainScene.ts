@@ -2,6 +2,8 @@ import Phaser from 'phaser'
 import { mulberry32, type Rng } from '../core/rng'
 import { drawRole } from '../core/slot'
 import { REEL_STRIP, resolveOutcome, reelWindow, type Outcome } from '../core/reels'
+import { BET, INITIAL_COINS, canSpin, payoutFor } from '../core/economy'
+import type { RoleId } from '../data/paytable'
 import { symbolTextureKey } from '../assets/keys'
 
 // メイン画面: 表示と入力のみ。抽選・出目解決は src/core/ に委譲する
@@ -18,6 +20,10 @@ export class MainScene extends Phaser.Scene {
   private phase: 'idle' | 'spinning' = 'idle'
   private stoppedCount = 0
   private outcome: Outcome | null = null
+  private currentRole: RoleId = 'none'
+  private coins = INITIAL_COINS
+  private coinText!: Phaser.GameObjects.Text
+  private winText!: Phaser.GameObjects.Text
 
   constructor() {
     super('Main')
@@ -28,6 +34,11 @@ export class MainScene extends Phaser.Scene {
 
     this.add
       .text(480, 40, 'モンスロ（仮）', { fontSize: '28px', color: '#ffd700' })
+      .setOrigin(0.5)
+
+    this.coinText = this.add.text(24, 24, '', { fontSize: '24px', color: '#ffe24a' })
+    this.winText = this.add
+      .text(480, 90, '', { fontSize: '22px', color: '#7CFC00' })
       .setOrigin(0.5)
 
     // リール窓と中央有効ライン
@@ -54,6 +65,21 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
     this.button.on('pointerdown', () => this.onButton())
+
+    this.refreshCoinUi()
+  }
+
+  /** 残高表示とスピンボタンの有効/無効を状態から再計算する */
+  private refreshCoinUi() {
+    this.coinText.setText(`コイン: ${this.coins}`)
+    const spinnable = this.phase === 'spinning' || canSpin(this.coins, BET)
+    if (spinnable) {
+      this.button.setInteractive({ useHandCursor: true })
+      this.button.setAlpha(1)
+    } else {
+      this.button.disableInteractive()
+      this.button.setAlpha(0.4)
+    }
   }
 
   private onButton() {
@@ -62,12 +88,16 @@ export class MainScene extends Phaser.Scene {
   }
 
   private startSpin() {
+    if (!canSpin(this.coins, BET)) return
+    this.coins -= BET
+    this.winText.setText('')
     // 当選役はスピン開始時に確定（タイミング非依存）
-    const role = drawRole(this.rng)
-    this.outcome = resolveOutcome(role, this.rng)
+    this.currentRole = drawRole(this.rng)
+    this.outcome = resolveOutcome(this.currentRole, this.rng)
     this.stoppedCount = 0
     this.phase = 'spinning'
     this.button.setText('ストップ')
+    this.refreshCoinUi()
     for (let reel = 0; reel < 3; reel++) {
       this.spinTimers[reel] = this.time.addEvent({
         delay: 60,
@@ -98,6 +128,17 @@ export class MainScene extends Phaser.Scene {
     if (this.stoppedCount === 3) {
       this.phase = 'idle'
       this.button.setText('スピン')
+      this.applyPayout()
     }
+  }
+
+  /** 全リール停止後に払い出しを反映（表示出目と入金タイミングを一致させる） */
+  private applyPayout() {
+    const payout = payoutFor(this.currentRole, BET)
+    if (payout > 0) {
+      this.coins += payout
+      this.winText.setText(`+${payout} コイン`)
+    }
+    this.refreshCoinUi()
   }
 }
