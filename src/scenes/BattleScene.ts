@@ -2,11 +2,12 @@ import Phaser from 'phaser'
 import { mulberry32, type Rng } from '../core/rng'
 import {
   BattleSim,
-  createEnemyGroup,
+  createEnemyGroupForFloor,
   makeCombatant,
   type BattleEvent,
   type BoostKind,
 } from '../core/battle'
+import { advanceFloor, isBossFloor } from '../core/floors'
 import { drawRole } from '../core/slot'
 import { REEL_STRIP, resolveOutcome, type Outcome } from '../core/reels'
 import { BET, canSpin, payoutFor } from '../core/economy'
@@ -56,11 +57,15 @@ export class BattleScene extends Phaser.Scene {
     this.views.clear()
     this.rng = mulberry32(Date.now() >>> 0)
     const party = gameState.party.map((id, i) => makeCombatant(id, 'party', i))
-    const enemies = createEnemyGroup(this.rng)
+    const enemies = createEnemyGroupForFloor(gameState.floor, this.rng)
     this.sim = new BattleSim(party, enemies, this.rng)
 
+    const bossMark = isBossFloor(gameState.floor) ? ' 【ボス】' : ''
     this.add
-      .text(480, 44, 'バトルラッシュ！', { fontSize: '34px', color: '#ff5fd7' })
+      .text(480, 44, `バトルラッシュ！ ${gameState.floor}F${bossMark}`, {
+        fontSize: '34px',
+        color: '#ff5fd7',
+      })
       .setOrigin(0.5)
 
     for (const c of this.sim.combatants) {
@@ -270,8 +275,10 @@ export class BattleScene extends Phaser.Scene {
 
   /** 勝敗と報酬内訳の結果画面。報酬はここで一度だけ状態に反映する */
   private showResult(won: boolean) {
-    const rewards = computeRewards(won, this.spentCoins, 1, this.rng)
+    // 報酬は戦った階層で計算してから階層を進める
+    const rewards = computeRewards(won, this.spentCoins, gameState.floor, this.rng)
     applyRewards(gameState, rewards)
+    advanceFloor(gameState, won)
     this.spentCoins = 0
     this.refreshSlotUi()
 

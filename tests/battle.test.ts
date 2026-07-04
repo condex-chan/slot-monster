@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mulberry32 } from '../src/core/rng'
-import { BattleSim, createEnemyGroup, damageOf, makeCombatant } from '../src/core/battle'
+import { BattleSim, createEnemyGroupForFloor, damageOf, makeCombatant } from '../src/core/battle'
 import type { Combatant, Side } from '../src/core/battle'
 
 function runToEnd(sim: BattleSim, maxSteps = 1000): { winner: Side | null; steps: number } {
@@ -79,9 +79,9 @@ describe('BattleSim', () => {
   })
 })
 
-describe('createEnemyGroup', () => {
-  it('指定数のベース種の敵を生成する', () => {
-    const enemies = createEnemyGroup(mulberry32(5))
+describe('createEnemyGroupForFloor', () => {
+  it('通常階はベース種3体の敵を生成する', () => {
+    const enemies = createEnemyGroupForFloor(1, mulberry32(5))
     expect(enemies.length).toBe(3)
     for (const e of enemies) {
       expect(e.side).toBe('enemy')

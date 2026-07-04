@@ -1,7 +1,8 @@
 // 自動戦闘エンジン（pure TS・Phaser非依存）。
 // 1ステップ=1行動で進め、演出用イベント列を返す。シーンはイベントを再生するだけ
 import type { Rng } from './rng'
-import { BASE_SPECIES, SKILLS, getSpecies, type SpeciesId } from '../data/monsters'
+import { enemyScale, isBossFloor } from './floors'
+import { BASE_SPECIES, SKILLS, SPECIES, getSpecies, type SpeciesId } from '../data/monsters'
 
 export type Side = 'party' | 'enemy'
 
@@ -52,11 +53,36 @@ export function damageOf(atk: number, def: number, roll: number): number {
   return Math.max(1, Math.round(base * (0.85 + roll * 0.3)))
 }
 
-/** 敵グループ生成。階層スケーリングは F11 で拡張する */
-export function createEnemyGroup(rng: Rng, count = 3): Combatant[] {
-  return Array.from({ length: count }, (_, i) => {
+const FUSION_SPECIES: readonly SpeciesId[] = SPECIES.filter((s) => s.tier === 'fusion').map(
+  (s) => s.id,
+)
+
+/** ボスの追加強化倍率（通常スケールに乗算） */
+export const BOSS_SCALE = 1.8
+
+function scaleCombatant(c: Combatant, scale: number): void {
+  c.maxHp = Math.round(c.maxHp * scale)
+  c.hp = c.maxHp
+  c.atk = Math.round(c.atk * scale)
+  c.def = Math.round(c.def * scale)
+  // SPDだけ伸びを緩くする（先手を取られ続ける理不尽を避ける）
+  c.spd = Math.round(c.spd * (1 + (scale - 1) * 0.3))
+}
+
+/** 階層に応じた敵グループ。通常=ベース種3体、ボス階=強化された配合種1体 */
+export function createEnemyGroupForFloor(floor: number, rng: Rng): Combatant[] {
+  if (isBossFloor(floor)) {
+    const speciesId = FUSION_SPECIES[Math.floor(rng() * FUSION_SPECIES.length)]
+    const boss = makeCombatant(speciesId, 'enemy', 1) // 中央スロットに配置
+    scaleCombatant(boss, enemyScale(floor) * BOSS_SCALE)
+    boss.name = `ボス・${boss.name}`
+    return [boss]
+  }
+  return Array.from({ length: 3 }, (_, i) => {
     const speciesId = BASE_SPECIES[Math.floor(rng() * BASE_SPECIES.length)]
-    return makeCombatant(speciesId, 'enemy', i)
+    const c = makeCombatant(speciesId, 'enemy', i)
+    scaleCombatant(c, enemyScale(floor))
+    return c
   })
 }
 

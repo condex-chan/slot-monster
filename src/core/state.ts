@@ -13,6 +13,10 @@ export interface GameState {
   eggs: number
   /** 配合素材の所持数 */
   materials: Record<MaterialId, number>
+  /** 現在の階層 */
+  floor: number
+  /** 最高到達階層（ハイスコア） */
+  bestFloor: number
 }
 
 export function createInitialState(): GameState {
@@ -22,6 +26,8 @@ export function createInitialState(): GameState {
     party: ['wolfy', 'draco', 'pururu'],
     eggs: 0,
     materials: { dew: 0, meat: 0, shard: 0, feather: 0 },
+    floor: 1,
+    bestFloor: 1,
   }
 }
 

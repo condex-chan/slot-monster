@@ -41,6 +41,12 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     this.coinText = this.add.text(24, 24, '', { fontSize: '24px', color: '#ffe24a' })
+    this.add.text(
+      24,
+      56,
+      `階層 ${gameState.floor}F ／ 最高 ${gameState.bestFloor}F`,
+      { fontSize: '18px', color: '#9cd8ff' },
+    )
     this.winText = this.add
       .text(480, 90, '', { fontSize: '22px', color: '#7CFC00' })
       .setOrigin(0.5)
