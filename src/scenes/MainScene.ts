@@ -13,6 +13,7 @@ import { BET, canSpin, payoutFor } from '../core/economy'
 import { CEILING_SPINS, entersBattle, nextCeilingCount, spinsUntilCeiling } from '../core/ceiling'
 import { flashReward } from '../core/flash'
 import { AUTO_UNLOCK_FLOOR, isAutoUnlocked, resolveFlashSuccess } from '../core/autospin'
+import { guideMessage, nextGuideStep } from '../core/onboarding'
 import { persistToLocalStorage } from '../core/save'
 import { gameState } from '../core/state'
 import { getMaterial } from '../data/materials'
@@ -58,6 +59,7 @@ export class MainScene extends Phaser.Scene {
   private winText!: Phaser.GameObjects.Text
   private ceilingText!: Phaser.GameObjects.Text
   private ceilingBar!: Phaser.GameObjects.Rectangle
+  private guideText!: Phaser.GameObjects.Text
 
   constructor() {
     super('Main')
@@ -129,6 +131,17 @@ export class MainScene extends Phaser.Scene {
 
     this.createPartyDisplay()
     this.createAutoButton()
+    // 初回オンボーディング: 段階に応じた1行ガイド（完了後は出ない）
+    this.guideText = this.add
+      .text(480, 437, '', {
+        fontSize: '19px',
+        color: '#ffe24a',
+        backgroundColor: '#1a1026',
+        padding: { x: 12, y: 4 },
+      })
+      .setOrigin(0.5)
+      .setDepth(60)
+    this.refreshGuideUi()
     this.refreshCoinUi()
     // 解放済みかつON設定なら自動でループを再開する
     if (gameState.autoSpin && isAutoUnlocked(gameState)) this.scheduleAutoSpin()
@@ -432,10 +445,18 @@ export class MainScene extends Phaser.Scene {
     this.flashLit = false
   }
 
+  private refreshGuideUi() {
+    const message = guideMessage(gameState.guide)
+    this.guideText.setText(message ?? '').setVisible(message !== null)
+  }
+
   /** 天井カウンタを進め、突入なら Battle シーンへ遷移する */
   private advanceCeiling() {
     const entered = entersBattle(this.currentRole, gameState.spinsSinceBattle)
     gameState.spinsSinceBattle = nextCeilingCount(entered, gameState.spinsSinceBattle)
+    // ガイド進行: ラッシュ突入は rush 段階を飛ばして boost 説明へ直行する
+    gameState.guide = nextGuideStep(gameState.guide, entered ? 'rushEntered' : 'spinDone')
+    this.refreshGuideUi()
     this.refreshCeilingUi()
     persistToLocalStorage(gameState) // スピン結果確定ごとに自動保存
     if (entered) {

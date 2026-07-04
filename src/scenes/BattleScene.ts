@@ -13,6 +13,7 @@ import { drawRole } from '../core/slot'
 import { REEL_STRIP, resolveOutcome, type Outcome } from '../core/reels'
 import { BET, canSpin, payoutFor } from '../core/economy'
 import { applyRewards, computeRewards } from '../core/rewards'
+import { nextGuideStep, shouldShowBoostGuide } from '../core/onboarding'
 import { persistToLocalStorage } from '../core/save'
 import { gameState } from '../core/state'
 import { getMaterial } from '../data/materials'
@@ -51,6 +52,7 @@ export class BattleScene extends Phaser.Scene {
   private coinText!: Phaser.GameObjects.Text
   /** このバトル中に投入したコイン（敗北保険の算定基準） */
   private spentCoins = 0
+  private boostGuidePanel: Phaser.GameObjects.Container | null = null
 
   constructor() {
     super('Battle')
@@ -99,6 +101,55 @@ export class BattleScene extends Phaser.Scene {
     })
 
     this.createMiniSlot()
+    if (shouldShowBoostGuide(gameState.guide)) this.showBoostGuide()
+  }
+
+  /** 説明を閉じて完了扱いにする（保存は直後の保存フックに任せる場合もある） */
+  private dismissBoostGuide() {
+    if (!this.boostGuidePanel) return
+    gameState.guide = nextGuideStep(gameState.guide, 'boostExplained')
+    this.boostGuidePanel.destroy()
+    this.boostGuidePanel = null
+  }
+
+  /** 初ラッシュ時のみのブースト説明。閉じたら完了フラグを保存し二度と出さない */
+  private showBoostGuide() {
+    const panel = this.add.container(480, 270).setDepth(120)
+    this.boostGuidePanel = panel
+    panel.add(this.add.rectangle(0, 0, 560, 220, 0x1a1026, 0.95).setStrokeStyle(2, 0xffe24a))
+    panel.add(
+      this.add
+        .text(0, -72, '③ ラッシュ中もスピンでブースト！', {
+          fontSize: '24px',
+          color: '#ffe24a',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5),
+    )
+    panel.add(
+      this.add
+        .text(0, -8, '剣が揃うと 全員追撃\nハートが揃うと 全員回復\n星が揃うと 先頭がスキル発動', {
+          fontSize: '19px',
+          color: '#ffffff',
+          align: 'center',
+          lineSpacing: 8,
+        })
+        .setOrigin(0.5),
+    )
+    const ok = this.add
+      .text(0, 78, 'OK！', {
+        fontSize: '22px',
+        color: '#ffffff',
+        backgroundColor: '#7a2ea0',
+        padding: { x: 26, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+    ok.on('pointerdown', () => {
+      this.dismissBoostGuide()
+      persistToLocalStorage(gameState)
+    })
+    panel.add(ok)
   }
 
   // ---- ラッシュ中ミニスロット（スピン継続でブースト） ----
@@ -277,6 +328,8 @@ export class BattleScene extends Phaser.Scene {
       case 'end': {
         this.ticker?.remove()
         this.ticker = null
+        // 説明が出たまま終局したら閉じて完了扱い（結果画面を隠さない。保存はshowResult内）
+        this.dismissBoostGuide()
         this.refreshSlotUi()
         this.showResult(ev.winner === 'party')
         break

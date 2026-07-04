@@ -1,6 +1,7 @@
 // セーブ/ロード（pure TS）。ストレージは注入可能にしてテストでは偽物を使う。
 // 壊れた・型が合わないデータは黙って初期状態にフォールバックする
 import { createInitialState, type GameState } from './state'
+import { normalizeGuide } from './onboarding'
 import { MATERIALS } from '../data/materials'
 import { SKILLS, SPECIES } from '../data/monsters'
 
@@ -40,6 +41,8 @@ export function loadState(storage: StorageLike): GameState {
       bestFloor: data.bestFloor,
       discovered: data.discovered,
       autoSpin: data.autoSpin,
+      // ガイドは後付けフィールド: v1セーブに無い場合はプレイ済みとみなし再表示しない
+      guide: normalizeGuide((data as { guide?: unknown }).guide),
     }
   } catch {
     return createInitialState()
