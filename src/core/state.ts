@@ -44,6 +44,8 @@ export interface GameState {
   autoSpin: boolean
   /** 初回オンボーディングの進行段階（done で完了） */
   guide: GuideStep
+  /** ミュート設定（BGM・SE共通） */
+  muted: boolean
 }
 
 const zeroBonus = (): MonsterBonus => ({ hp: 0, atk: 0, def: 0, spd: 0 })
@@ -66,6 +68,7 @@ export function createInitialState(): GameState {
     discovered: ['wolfy', 'draco', 'pururu'],
     autoSpin: false,
     guide: 'spin',
+    muted: false,
   }
 }
 

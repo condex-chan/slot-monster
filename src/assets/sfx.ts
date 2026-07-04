@@ -1,6 +1,7 @@
 // WebAudio 生成SE（外部音源ファイルのDLなし、PRDの仮定）。
 // AudioContext が使えない環境（テスト・非対応ブラウザ）では無音で何もしない
 let ctx: AudioContext | null | undefined
+let muted = false
 
 function audioCtx(): AudioContext | null {
   if (ctx !== undefined) return ctx
@@ -19,6 +20,7 @@ function tone(
   volume: number,
   delayMs = 0,
 ): void {
+  if (muted) return
   const c = audioCtx()
   if (!c) return
   try {
@@ -38,6 +40,11 @@ function tone(
   } catch {
     /* 無音でよい */
   }
+}
+
+/** ミュート設定（Phaser側のBGMミュートと連動させる）。sfx とは分離し全SEは無引数を保つ */
+export function setSfxMuted(value: boolean): void {
+  muted = value
 }
 
 export const sfx = {

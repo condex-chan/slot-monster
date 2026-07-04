@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { bgm } from '../assets/bgm'
 import { isDiscovered } from '../core/collection'
 import { gameState } from '../core/state'
 import { SPECIES } from '../data/monsters'
@@ -13,6 +14,7 @@ export class DexScene extends Phaser.Scene {
   }
 
   create() {
+    bgm.enter(this, 'Dex')
     const found = SPECIES.filter((s) => isDiscovered(gameState, s.id)).length
     this.add
       .text(480, 36, `図鑑（${found} / ${SPECIES.length}）`, {

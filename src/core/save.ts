@@ -1,6 +1,7 @@
 // セーブ/ロード（pure TS）。ストレージは注入可能にしてテストでは偽物を使う。
 // 壊れた・型が合わないデータは黙って初期状態にフォールバックする
 import { createInitialState, type GameState } from './state'
+import { normalizeMuted } from './audio'
 import { normalizeGuide } from './onboarding'
 import { MATERIALS } from '../data/materials'
 import { SKILLS, SPECIES } from '../data/monsters'
@@ -43,6 +44,8 @@ export function loadState(storage: StorageLike): GameState {
       autoSpin: data.autoSpin,
       // ガイドは後付けフィールド: v1セーブに無い場合はプレイ済みとみなし再表示しない
       guide: normalizeGuide((data as { guide?: unknown }).guide),
+      // ミュートも後付けフィールド: 無ければ音あり
+      muted: normalizeMuted((data as { muted?: unknown }).muted),
     }
   } catch {
     return createInitialState()

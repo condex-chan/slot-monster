@@ -32,7 +32,7 @@
     "priority": 5,
     "description": "オーディオパイプライン: public/assets/audio/ の bgm-main / bgm-battle / jingle-win を manifest 経由でロードし、メイン/バトルでループBGM切替（フェード付き）、勝利でジングル。ファイルが無ければ無音のまま（既存 WebAudio SE は常時併用）。ミュートボタンをUIに追加し設定をセーブに含める",
     "steps": ["BGMファイルなしで全シーン無音+SE動作（E2E green）", "ミュート切替が保存・復元される（テスト）", "シーン遷移でBGMキーが切り替わるロジックのテスト"],
-    "passes": false
+    "passes": true
   },
   {
     "id": "V2-F6",

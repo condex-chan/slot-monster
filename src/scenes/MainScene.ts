@@ -22,6 +22,8 @@ import { getInstance } from '../core/collection'
 import { getSpecies } from '../data/monsters'
 import { monsterTextureKey, symbolTextureKey } from '../assets/keys'
 import { sfx } from '../assets/sfx'
+import { bgm } from '../assets/bgm'
+import { addMuteButton } from '../ui/muteButton'
 
 // メイン画面: 表示と入力のみ。抽選・出目解決は src/core/ に委譲する
 const REEL_X = [360, 480, 600]
@@ -67,6 +69,7 @@ export class MainScene extends Phaser.Scene {
 
   create() {
     this.rng = mulberry32(Date.now() >>> 0)
+    bgm.enter(this, 'Main')
 
     this.add
       .text(480, 40, 'モンスロ（仮）', { fontSize: '28px', color: '#ffd700' })
@@ -92,6 +95,7 @@ export class MainScene extends Phaser.Scene {
       .rectangle(736, 58, 200, 12, 0xff5fd7)
       .setOrigin(0, 0)
     this.refreshCeilingUi()
+    addMuteButton(this, 936, 80)
 
     // リール窓と中央有効ライン。図柄帯はマスクで窓外を隠しスクロールさせる
     const maskShape = this.make

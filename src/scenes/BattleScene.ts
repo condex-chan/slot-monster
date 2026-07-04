@@ -20,6 +20,8 @@ import { getMaterial } from '../data/materials'
 import type { RoleId } from '../data/paytable'
 import { monsterTextureKey, symbolTextureKey } from '../assets/keys'
 import { sfx } from '../assets/sfx'
+import { bgm } from '../assets/bgm'
+import { addMuteButton } from '../ui/muteButton'
 
 // バトル画面: BattleSim のイベント列を再生するだけ。戦闘の意思決定は core/battle.ts
 const PARTY_X = 220
@@ -63,6 +65,8 @@ export class BattleScene extends Phaser.Scene {
     // ヒットストップ中にシーンが切り替わっても時間が止まったままにならないよう常に復帰
     this.time.timeScale = 1
     this.tweens.timeScale = 1
+    bgm.enter(this, 'Battle')
+    addMuteButton(this, 936, 20)
     this.rng = mulberry32(Date.now() >>> 0)
     const party = gameState.party.map((uid, i) =>
       makeCombatantFromInstance(getInstance(gameState, uid), 'party', i),
@@ -379,6 +383,7 @@ export class BattleScene extends Phaser.Scene {
 
     if (won) {
       sfx.victory()
+      bgm.victoryJingle(this)
       this.cameras.main.shake(180, 0.004)
     } else {
       sfx.defeat()

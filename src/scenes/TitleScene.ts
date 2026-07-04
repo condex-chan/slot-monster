@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { bgm } from '../assets/bgm'
 import { hasSavedGame } from '../core/save'
 
 // タイトル画面: 表示と入力のみ。セーブ復元は Boot 済みなので、
@@ -9,6 +10,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create() {
+    bgm.enter(this, 'Title')
     this.add
       .text(480, 170, 'モンスロ（仮）', {
         fontSize: '64px',

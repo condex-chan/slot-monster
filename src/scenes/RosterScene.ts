@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { bgm } from '../assets/bgm'
 import { mulberry32, type Rng } from '../core/rng'
 import { assignToParty, getInstance, hatchEgg, totalStats } from '../core/collection'
 import { feed } from '../core/feeding'
@@ -34,6 +35,7 @@ export class RosterScene extends Phaser.Scene {
   }
 
   create() {
+    bgm.enter(this, 'Roster')
     this.rng = mulberry32(Date.now() >>> 0)
     this.selectedUid = null
     this.partyImgs = []

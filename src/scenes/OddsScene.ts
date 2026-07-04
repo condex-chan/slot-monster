@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { bgm } from '../assets/bgm'
 import { PAYTABLE, type RoleId } from '../data/paytable'
 
 // 確率表: 役テーブルの実値を常時公開する（「確率を大事に」の見える化、design.md）
@@ -20,6 +21,7 @@ export class OddsScene extends Phaser.Scene {
   }
 
   create() {
+    bgm.enter(this, 'Odds')
     this.add
       .text(480, 36, '確率表', { fontSize: '26px', color: '#ffd700' })
       .setOrigin(0.5)
