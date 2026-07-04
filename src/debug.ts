@@ -9,6 +9,8 @@ export interface DebugApi {
   state: typeof gameState
   activeScene(): string
   addCoins(n: number): void
+  /** タイトル画面を飛ばして Main へ（E2E は既存フローを維持する） */
+  skipTitle(): void
   /** 次のスピンを天井確定にする */
   forceRush(): void
   /** メイン画面で1スピンを即時完了させる */
@@ -34,6 +36,9 @@ export function installDebugHooks(game: Phaser.Game): void {
         .join(','),
     addCoins: (n) => {
       gameState.coins += n
+    },
+    skipTitle: () => {
+      if (game.scene.isActive('Title')) game.scene.getScene('Title').scene.start('Main')
     },
     forceRush: () => {
       gameState.spinsSinceBattle = CEILING_SPINS

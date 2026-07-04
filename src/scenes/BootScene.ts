@@ -13,6 +13,6 @@ export class BootScene extends Phaser.Scene {
     restoreIntoGameState(gameState)
     generateSymbolTextures(this)
     generateMonsterTextures(this)
-    this.scene.start('Main')
+    this.scene.start('Title')
   }
 }

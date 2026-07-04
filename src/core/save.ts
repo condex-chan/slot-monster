@@ -46,6 +46,17 @@ export function loadState(storage: StorageLike): GameState {
   }
 }
 
+/** 有効なセーブデータが存在するか（タイトル画面の「つづきから」表示判定） */
+export function hasSave(storage: StorageLike): boolean {
+  try {
+    const raw = storage.getItem(SAVE_KEY)
+    if (!raw) return false
+    return isValidSave(JSON.parse(raw))
+  } catch {
+    return false
+  }
+}
+
 function isValidSave(d: unknown): d is GameState {
   if (typeof d !== 'object' || d === null) return false
   const s = d as Record<string, unknown>
@@ -97,5 +108,13 @@ export function restoreIntoGameState(state: GameState): void {
     Object.assign(state, loadState(window.localStorage))
   } catch {
     /* 読めない環境は初期状態のまま */
+  }
+}
+
+export function hasSavedGame(): boolean {
+  try {
+    return hasSave(window.localStorage)
+  } catch {
+    return false
   }
 }
