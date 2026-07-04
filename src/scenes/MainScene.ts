@@ -3,6 +3,7 @@ import { mulberry32, type Rng } from '../core/rng'
 import { drawRole } from '../core/slot'
 import { REEL_STRIP, resolveOutcome, reelWindow, type Outcome } from '../core/reels'
 import { BET, INITIAL_COINS, canSpin, payoutFor } from '../core/economy'
+import { CEILING_SPINS, entersBattle, nextCeilingCount, spinsUntilCeiling } from '../core/ceiling'
 import type { RoleId } from '../data/paytable'
 import { symbolTextureKey } from '../assets/keys'
 
@@ -24,6 +25,9 @@ export class MainScene extends Phaser.Scene {
   private coins = INITIAL_COINS
   private coinText!: Phaser.GameObjects.Text
   private winText!: Phaser.GameObjects.Text
+  private spinsSinceBattle = 0
+  private ceilingText!: Phaser.GameObjects.Text
+  private ceilingBar!: Phaser.GameObjects.Rectangle
 
   constructor() {
     super('Main')
@@ -40,6 +44,16 @@ export class MainScene extends Phaser.Scene {
     this.winText = this.add
       .text(480, 90, '', { fontSize: '22px', color: '#7CFC00' })
       .setOrigin(0.5)
+
+    // 天井メーター（右上）: 残りが減るほどバーが縮む
+    this.ceilingText = this.add
+      .text(936, 24, '', { fontSize: '18px', color: '#ff9cee' })
+      .setOrigin(1, 0)
+    this.add.rectangle(836, 58, 200, 12, 0x000000, 0.5).setOrigin(0.5, 0)
+    this.ceilingBar = this.add
+      .rectangle(736, 58, 200, 12, 0xff5fd7)
+      .setOrigin(0, 0)
+    this.refreshCeilingUi()
 
     // リール窓と中央有効ライン
     for (let reel = 0; reel < 3; reel++) {
@@ -140,5 +154,19 @@ export class MainScene extends Phaser.Scene {
       this.winText.setText(`+${payout} コイン`)
     }
     this.refreshCoinUi()
+    this.advanceCeiling()
+  }
+
+  /** 天井カウンタを進める。突入判定は F6 でシーン遷移に接続する */
+  private advanceCeiling() {
+    const entered = entersBattle(this.currentRole, this.spinsSinceBattle)
+    this.spinsSinceBattle = nextCeilingCount(entered, this.spinsSinceBattle)
+    this.refreshCeilingUi()
+  }
+
+  private refreshCeilingUi() {
+    const remaining = spinsUntilCeiling(this.spinsSinceBattle)
+    this.ceilingText.setText(`天井まで あと${remaining}スピン`)
+    this.ceilingBar.width = 200 * (remaining / CEILING_SPINS)
   }
 }

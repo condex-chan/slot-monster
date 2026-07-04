@@ -7,3 +7,4 @@
 2026-07-05 [iter2] F2完了: mulberry32 PRNG(src/core/rng.ts)+役テーブル定数(src/data/paytable.ts)+抽選エンジン(src/core/slot.ts)。10万試行分布テスト15件 green。 / Decisions: 小役(剣/ハート/星)の払い出しは×0.5に設定→通常時コインRTP=90.0%でdesign.mdの目標90〜95%下限に合わせた(ラッシュ分の上振れ余地を残す)。RTP検証テストも追加。
 2026-07-05 [iter3] F3完了: 出目解決(core/reels.ts)+図柄テクスチャ生成(assets/textures.ts,keys.ts)+MainSceneのリール表示と3段階ストップ。verify green(27テスト)。 / Decisions: 回転演出はテクスチャ高速入替方式(スクロールより単純で結果整合が保証しやすい)。ハズレ出目は「3揃いにしない」だけ保証し2個一致(リーチ)は自然発生に任せる(F6の演出素材になる)。
 2026-07-05 [iter4] F4完了: コイン経済(core/economy.ts)+MainScene残高UI・ベット消費・全停止後払い出し・不足時ボタン無効。verify green(39テスト)。 / Decisions: BET=10固定・初期コイン500(design.mdに規定なし、天井40スピン=400消費を初期資金で1周弱回れる水準)。払い出しは役テーブルのpayoutMultから導出し二重管理しない。
+2026-07-05 [iter5] F5完了: 天井ロジック(core/ceiling.ts)+右上メーターUI(残りスピン数テキスト+縮むバー)。40スピン非突入→41回目強制突入のテスト含む44テスト green。 / Decisions: 突入判定entersBattleはF5でカウンタ更新にのみ接続し、シーン遷移はF6で接続する(featureの境界を守る)。
