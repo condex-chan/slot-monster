@@ -64,6 +64,10 @@ export class MainScene extends Phaser.Scene {
   private ceilingText!: Phaser.GameObjects.Text
   private ceilingBar!: Phaser.GameObjects.Rectangle
   private guideText!: Phaser.GameObjects.Text
+  // リーチ・揃い演出（操作はブロックしない）
+  private lineFrame!: Phaser.GameObjects.Rectangle
+  private lineBlinkTween: Phaser.Tweens.Tween | null = null
+  private winTweens: Phaser.Tweens.Tween[] = []
 
   constructor() {
     super('Main')
@@ -131,7 +135,7 @@ export class MainScene extends Phaser.Scene {
       this.bandPos[reel] = reel * 3
       this.renderBand(reel)
     }
-    this.add
+    this.lineFrame = this.add
       .rectangle(480, 270, CELL_W * 3 + 40, 100)
       .setStrokeStyle(3, 0xffd700, 0.9)
 
@@ -302,6 +306,8 @@ export class MainScene extends Phaser.Scene {
     this.phase = 'spinning'
     this.button.setText('ストップ')
     this.refreshCoinUi()
+    this.clearWinEmphasis()
+    this.stopLineBlink()
     sfx.spin()
     for (let reel = 0; reel < 3; reel++) this.bandSpeed[reel] = SPIN_SPEED
   }
@@ -354,13 +360,62 @@ export class MainScene extends Phaser.Scene {
       this.startFlashCue()
     }
     if (this.stoppedCount === 2 && isReach(this.outcome) && this.bandSpeed[2] > 0) {
-      // リーチ演出: 3リール目の帯を遅くして期待の間を作る
+      // リーチ演出: 3リール目の帯を遅くし、有効ライン枠を点滅させて期待の間を作る
       this.bandSpeed[2] = REACH_SPEED
+      this.startLineBlink()
     }
     if (this.stoppedCount === 3) {
+      this.stopLineBlink()
       this.phase = 'idle'
       this.button.setText('スピン')
       this.applyPayout()
+      if (this.currentRole !== 'none') this.emphasizeWinLine()
+    }
+  }
+
+  // ---- リーチ・揃い演出（tweenのみ。入力はブロックしない） ----
+
+  private startLineBlink() {
+    this.lineFrame.setStrokeStyle(4, 0xff5fd7, 1)
+    this.lineBlinkTween = this.tweens.add({
+      targets: this.lineFrame,
+      alpha: 0.25,
+      duration: 180,
+      yoyo: true,
+      repeat: -1,
+    })
+  }
+
+  private stopLineBlink() {
+    this.lineBlinkTween?.remove()
+    this.lineBlinkTween = null
+    this.lineFrame.setAlpha(1)
+    this.lineFrame.setStrokeStyle(3, 0xffd700, 0.9)
+  }
+
+  /** 揃い時: 有効ライン上の3図柄を拡大点滅で強調する */
+  private emphasizeWinLine() {
+    for (let reel = 0; reel < 3; reel++) {
+      const img = this.bandImages[reel][CENTER_SLOT]
+      this.winTweens.push(
+        this.tweens.add({
+          targets: img,
+          scale: 1.28,
+          duration: 150,
+          yoyo: true,
+          repeat: 3,
+          ease: 'Sine.inOut',
+        }),
+      )
+    }
+  }
+
+  /** 次スピン開始時に強調を確実に解除する（帯画像は使い回すため） */
+  private clearWinEmphasis() {
+    for (const tween of this.winTweens) tween.remove()
+    this.winTweens = []
+    for (const column of this.bandImages) {
+      for (const img of column) img.setScale(1)
     }
   }
 
