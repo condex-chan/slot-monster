@@ -13,6 +13,7 @@ import type { RoleId } from '../data/paytable'
 import { getInstance } from '../core/collection'
 import { getSpecies } from '../data/monsters'
 import { monsterTextureKey, symbolTextureKey } from '../assets/keys'
+import { sfx } from '../assets/sfx'
 
 // メイン画面: 表示と入力のみ。抽選・出目解決は src/core/ に委譲する
 const REEL_X = [360, 480, 600]
@@ -232,6 +233,7 @@ export class MainScene extends Phaser.Scene {
     this.phase = 'spinning'
     this.button.setText('ストップ')
     this.refreshCoinUi()
+    sfx.spin()
     for (let reel = 0; reel < 3; reel++) {
       this.spinTimers[reel] = this.time.addEvent({
         delay: 60,
@@ -263,6 +265,7 @@ export class MainScene extends Phaser.Scene {
     for (let row = 0; row < 3; row++) {
       this.cells[reel][row].setTexture(symbolTextureKey(window[row]))
     }
+    sfx.stop()
     this.stoppedCount++
     if (this.stoppedCount === 2 && this.currentRole === 'flash') {
       this.startFlashCue()
@@ -297,15 +300,46 @@ export class MainScene extends Phaser.Scene {
           ? `目押し成功！ +${reward.coins} コイン & ${materialNote}`
           : `取りこぼし… +${reward.coins} コイン`,
       )
+      this.celebrate(reward.coins)
     } else {
       const payout = payoutFor(this.currentRole, BET)
       if (payout > 0) {
         gameState.coins += payout
         this.winText.setText(`+${payout} コイン`)
+        this.celebrate(payout)
       }
     }
     this.refreshCoinUi()
     this.advanceCeiling()
+  }
+
+  /** 払い出し演出: SE+コインシャワー、大当たりは画面振動も */
+  private celebrate(payout: number) {
+    sfx.win()
+    this.coinShower(payout)
+    if (payout >= BET * 5) this.cameras.main.shake(150, 0.005)
+  }
+
+  /** 払い出し額に応じたコインの物理シャワー（操作は塞がない） */
+  private coinShower(payout: number) {
+    const count = Math.min(24, Math.max(4, Math.floor(payout / BET) * 3))
+    const texture = symbolTextureKey(payout >= BET * 5 ? 'gold' : 'copper')
+    for (let i = 0; i < count; i++) {
+      const x = 300 + Math.random() * 360
+      const coin = this.add
+        .image(x, -30 - Math.random() * 60, texture)
+        .setScale(0.35 + Math.random() * 0.2)
+        .setDepth(50)
+      this.tweens.add({
+        targets: coin,
+        y: 580,
+        angle: (Math.random() - 0.5) * 360,
+        delay: i * 28,
+        duration: 650 + Math.random() * 450,
+        ease: 'Quad.in',
+        onComplete: () => coin.destroy(),
+      })
+    }
   }
 
   /** フラッシュ役の視覚合図: 3リール目の枠が点滅する */
@@ -343,8 +377,8 @@ export class MainScene extends Phaser.Scene {
       // 出目を見せてから遷移。待ち時間中の誤操作は無効化
       this.button.disableInteractive()
       this.button.setAlpha(0.4)
-      this.winText.setText('バトルラッシュ突入！')
-      this.time.delayedCall(700, () => this.scene.start('Battle'))
+      this.playRushCutin()
+      this.time.delayedCall(1000, () => this.scene.start('Battle'))
     } else if (this.autoMode) {
       this.scheduleAutoSpin()
     }
@@ -354,5 +388,22 @@ export class MainScene extends Phaser.Scene {
     const remaining = spinsUntilCeiling(gameState.spinsSinceBattle)
     this.ceilingText.setText(`天井まで あと${remaining}スピン`)
     this.ceilingBar.width = 200 * (remaining / CEILING_SPINS)
+  }
+
+  /** ラッシュ突入カットイン: 画面フラッシュ+帯+スライドイン+振動+SE */
+  private playRushCutin() {
+    sfx.rush()
+    this.cameras.main.flash(180, 255, 95, 215)
+    this.cameras.main.shake(250, 0.006)
+    this.add.rectangle(480, 270, 960, 130, 0x1a1026, 0.85).setDepth(90)
+    const cutin = this.add
+      .text(-260, 270, 'BATTLE RUSH!!', {
+        fontSize: '58px',
+        color: '#ff5fd7',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+      .setDepth(91)
+    this.tweens.add({ targets: cutin, x: 480, duration: 260, ease: 'Back.out' })
   }
 }

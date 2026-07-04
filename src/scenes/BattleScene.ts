@@ -18,6 +18,7 @@ import { gameState } from '../core/state'
 import { getMaterial } from '../data/materials'
 import type { RoleId } from '../data/paytable'
 import { monsterTextureKey, symbolTextureKey } from '../assets/keys'
+import { sfx } from '../assets/sfx'
 
 // バトル画面: BattleSim のイベント列を再生するだけ。戦闘の意思決定は core/battle.ts
 const PARTY_X = 220
@@ -57,6 +58,9 @@ export class BattleScene extends Phaser.Scene {
 
   create() {
     this.views.clear()
+    // ヒットストップ中にシーンが切り替わっても時間が止まったままにならないよう常に復帰
+    this.time.timeScale = 1
+    this.tweens.timeScale = 1
     this.rng = mulberry32(Date.now() >>> 0)
     const party = gameState.party.map((uid, i) =>
       makeCombatantFromInstance(getInstance(gameState, uid), 'party', i),
@@ -151,6 +155,7 @@ export class BattleScene extends Phaser.Scene {
     this.slotPhase = 'spinning'
     this.slotButton.setText('ストップ')
     this.refreshSlotUi()
+    sfx.spin()
     for (let i = 0; i < 3; i++) {
       this.slotTimers[i] = this.time.addEvent({
         delay: 60,
@@ -169,6 +174,7 @@ export class BattleScene extends Phaser.Scene {
     this.slotTimers[i]?.remove()
     this.slotTimers[i] = null
     this.slotCells[i].setTexture(symbolTextureKey(this.slotOutcome[i]))
+    sfx.stop()
     this.slotStopped++
     if (this.slotStopped === 3) {
       this.slotPhase = 'idle'
@@ -179,7 +185,10 @@ export class BattleScene extends Phaser.Scene {
 
   private settleBattleSpin() {
     const payout = payoutFor(this.slotRole, BET)
-    if (payout > 0) gameState.coins += payout
+    if (payout > 0) {
+      gameState.coins += payout
+      sfx.win()
+    }
     if (this.slotRole === 'sword' || this.slotRole === 'heart' || this.slotRole === 'star') {
       this.applyBoostWithFx(this.slotRole)
     }
@@ -230,6 +239,8 @@ export class BattleScene extends Phaser.Scene {
         })
         target.hpBar.width = HP_BAR_W * (ev.targetHp / target.maxHp)
         this.popDamage(target.img.x, target.img.y - 20, ev.damage)
+        sfx.hit()
+        if (ev.damage >= 20) this.cameras.main.shake(90, 0.004)
         break
       }
       case 'heal': {
@@ -246,6 +257,8 @@ export class BattleScene extends Phaser.Scene {
       case 'defeat': {
         const target = this.views.get(ev.targetId)
         if (target) this.tweens.add({ targets: target.img, alpha: 0.15, duration: 250 })
+        this.hitStop(90)
+        this.cameras.main.shake(120, 0.005)
         break
       }
       case 'end': {
@@ -264,6 +277,17 @@ export class BattleScene extends Phaser.Scene {
 
   private popHeal(x: number, y: number, amount: number) {
     this.popText(x, y, `+${amount}`, '#7cfc00')
+  }
+
+  /** ヒットストップ: 時間を一瞬止めて撃破の手応えを出す。実時間で必ず復帰させる */
+  private hitStop(ms: number) {
+    if (this.time.timeScale !== 1) return
+    this.time.timeScale = 0.05
+    this.tweens.timeScale = 0.05
+    setTimeout(() => {
+      this.time.timeScale = 1
+      this.tweens.timeScale = 1
+    }, ms)
   }
 
   private popText(x: number, y: number, message: string, color: string) {
@@ -287,6 +311,12 @@ export class BattleScene extends Phaser.Scene {
     persistToLocalStorage(gameState) // バトル結果確定で自動保存
     this.refreshSlotUi()
 
+    if (won) {
+      sfx.victory()
+      this.cameras.main.shake(180, 0.004)
+    } else {
+      sfx.defeat()
+    }
     this.add.rectangle(480, 270, 460, 320, 0x1a1026, 0.92)
     this.add
       .text(480, 160, won ? '勝利！' : '敗北…', {
