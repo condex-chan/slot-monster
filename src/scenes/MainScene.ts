@@ -6,6 +6,7 @@ import { BET, canSpin, payoutFor } from '../core/economy'
 import { CEILING_SPINS, entersBattle, nextCeilingCount, spinsUntilCeiling } from '../core/ceiling'
 import { gameState } from '../core/state'
 import type { RoleId } from '../data/paytable'
+import { getInstance } from '../core/collection'
 import { getSpecies } from '../data/monsters'
 import { monsterTextureKey, symbolTextureKey } from '../assets/keys'
 
@@ -93,9 +94,10 @@ export class MainScene extends Phaser.Scene {
   /** パーティ3体を左下に表示（待機モーションの上下ゆれ） */
   private createPartyDisplay() {
     this.add.text(24, 400, 'パーティ', { fontSize: '16px', color: '#cccccc' })
-    gameState.party.forEach((id, i) => {
+    gameState.party.forEach((uid, i) => {
+      const speciesId = getInstance(gameState, uid).speciesId
       const x = 80 + i * 82
-      const img = this.add.image(x, 470, monsterTextureKey(id)).setScale(0.75)
+      const img = this.add.image(x, 470, monsterTextureKey(speciesId)).setScale(0.75)
       this.tweens.add({
         targets: img,
         y: 462,
@@ -105,9 +107,20 @@ export class MainScene extends Phaser.Scene {
         ease: 'Sine.inOut',
       })
       this.add
-        .text(x, 512, getSpecies(id).label, { fontSize: '13px', color: '#cccccc' })
+        .text(x, 512, getSpecies(speciesId).label, { fontSize: '13px', color: '#cccccc' })
         .setOrigin(0.5)
     })
+
+    const rosterBtn = this.add
+      .text(884, 480, '育成', {
+        fontSize: '22px',
+        color: '#ffffff',
+        backgroundColor: '#2e7d32',
+        padding: { x: 18, y: 8 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+    rosterBtn.on('pointerdown', () => this.scene.start('Roster'))
   }
 
   /** 残高表示とスピンボタンの有効/無効を状態から再計算する */

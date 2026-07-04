@@ -2,6 +2,8 @@
 // 1ステップ=1行動で進め、演出用イベント列を返す。シーンはイベントを再生するだけ
 import type { Rng } from './rng'
 import { enemyScale, isBossFloor } from './floors'
+import { totalStats } from './collection'
+import type { MonsterInstance } from './state'
 import { BASE_SPECIES, SKILLS, SPECIES, getSpecies, type SpeciesId } from '../data/monsters'
 
 export type Side = 'party' | 'enemy'
@@ -43,6 +45,28 @@ export function makeCombatant(speciesId: SpeciesId, side: Side, slot: number): C
     atk: s.atk,
     def: s.def,
     spd: s.spd,
+    skillId: s.skillId,
+  }
+}
+
+/** 手持ち個体から出撃コンバタントを作る（餌やり・配合ボーナス込み） */
+export function makeCombatantFromInstance(
+  m: MonsterInstance,
+  side: Side,
+  slot: number,
+): Combatant {
+  const s = getSpecies(m.speciesId)
+  const stats = totalStats(m)
+  return {
+    id: `${side}-${slot}`,
+    speciesId: m.speciesId,
+    name: s.label,
+    side,
+    maxHp: stats.hp,
+    hp: stats.hp,
+    atk: stats.atk,
+    def: stats.def,
+    spd: stats.spd,
     skillId: s.skillId,
   }
 }

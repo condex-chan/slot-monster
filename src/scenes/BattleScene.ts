@@ -3,10 +3,11 @@ import { mulberry32, type Rng } from '../core/rng'
 import {
   BattleSim,
   createEnemyGroupForFloor,
-  makeCombatant,
+  makeCombatantFromInstance,
   type BattleEvent,
   type BoostKind,
 } from '../core/battle'
+import { getInstance } from '../core/collection'
 import { advanceFloor, isBossFloor } from '../core/floors'
 import { drawRole } from '../core/slot'
 import { REEL_STRIP, resolveOutcome, type Outcome } from '../core/reels'
@@ -56,7 +57,9 @@ export class BattleScene extends Phaser.Scene {
   create() {
     this.views.clear()
     this.rng = mulberry32(Date.now() >>> 0)
-    const party = gameState.party.map((id, i) => makeCombatant(id, 'party', i))
+    const party = gameState.party.map((uid, i) =>
+      makeCombatantFromInstance(getInstance(gameState, uid), 'party', i),
+    )
     const enemies = createEnemyGroupForFloor(gameState.floor, this.rng)
     this.sim = new BattleSim(party, enemies, this.rng)
 
