@@ -1,0 +1,5 @@
+# progress.txt — append-only セッションログ
+# 形式: [日付] [iteration] やったこと / Decisions: 判断と根拠 / BLOCKED: 理由
+
+2026-07-05 [setup] 足場構築: git init, Vite+Phaser+TS スケルトン, PRD/features.json(21件)/LOOP_PROMPT/verify.sh 作成。npm install 完了。
+2026-07-05 [setup] Decisions: アートはコード生成プレースホルダー(スプライトキー一元管理で後日差し替え), SEはWebAudio生成, itch.io実アップロードはスコープ外(人間実行)。
