@@ -1,19 +1,6 @@
 import Phaser from 'phaser'
-
-class BootScene extends Phaser.Scene {
-  constructor() {
-    super('Boot')
-  }
-
-  create() {
-    this.add
-      .text(480, 270, 'モンスロ（仮）', {
-        fontSize: '48px',
-        color: '#ffd700',
-      })
-      .setOrigin(0.5)
-  }
-}
+import { BootScene } from './scenes/BootScene'
+import { MainScene } from './scenes/MainScene'
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -25,5 +12,5 @@ new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene],
+  scene: [BootScene, MainScene],
 })

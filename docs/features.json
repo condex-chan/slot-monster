@@ -4,7 +4,7 @@
     "priority": 1,
     "description": "プロジェクト基盤: Phaser 3 が 960x540 で起動し、Boot→Main のシーン骨格がある。verify.sh の tsc/build/vitest が green",
     "steps": ["npm run dev で起動", "canvas が表示される", "bash scripts/verify.sh が通る"],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F2",
