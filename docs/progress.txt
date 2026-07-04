@@ -5,3 +5,4 @@
 2026-07-05 [setup] Decisions: アートはコード生成プレースホルダー(スプライトキー一元管理で後日差し替え), SEはWebAudio生成, itch.io実アップロードはスコープ外(人間実行)。
 2026-07-05 [iter1] F1完了: Boot→Main のシーン骨格を src/scenes/ に分離、main.ts はゲーム設定のみに。verify.sh green (tsc+build、tests/E2Eは未着手スキップ)。 / Decisions: シーンは1ファイル1クラスで scenes/ 配下に置く（後続シーン追加の型を先に作る）。
 2026-07-05 [iter2] F2完了: mulberry32 PRNG(src/core/rng.ts)+役テーブル定数(src/data/paytable.ts)+抽選エンジン(src/core/slot.ts)。10万試行分布テスト15件 green。 / Decisions: 小役(剣/ハート/星)の払い出しは×0.5に設定→通常時コインRTP=90.0%でdesign.mdの目標90〜95%下限に合わせた(ラッシュ分の上振れ余地を残す)。RTP検証テストも追加。
+2026-07-05 [iter3] F3完了: 出目解決(core/reels.ts)+図柄テクスチャ生成(assets/textures.ts,keys.ts)+MainSceneのリール表示と3段階ストップ。verify green(27テスト)。 / Decisions: 回転演出はテクスチャ高速入替方式(スクロールより単純で結果整合が保証しやすい)。ハズレ出目は「3揃いにしない」だけ保証し2個一致(リーチ)は自然発生に任せる(F6の演出素材になる)。

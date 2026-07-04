@@ -1,17 +1,103 @@
 import Phaser from 'phaser'
+import { mulberry32, type Rng } from '../core/rng'
+import { drawRole } from '../core/slot'
+import { REEL_STRIP, resolveOutcome, reelWindow, type Outcome } from '../core/reels'
+import { symbolTextureKey } from '../assets/keys'
 
-// メイン画面: スロット中央＋パーティ表示＋各種メーター（後続 feature で実装）
+// メイン画面: 表示と入力のみ。抽選・出目解決は src/core/ に委譲する
+const REEL_X = [360, 480, 600]
+const ROW_Y = [170, 270, 370]
+const CELL_W = 104
+const WINDOW_H = 300
+
 export class MainScene extends Phaser.Scene {
+  private rng!: Rng
+  private cells: Phaser.GameObjects.Image[][] = []
+  private spinTimers: (Phaser.Time.TimerEvent | null)[] = [null, null, null]
+  private button!: Phaser.GameObjects.Text
+  private phase: 'idle' | 'spinning' = 'idle'
+  private stoppedCount = 0
+  private outcome: Outcome | null = null
+
   constructor() {
     super('Main')
   }
 
   create() {
+    this.rng = mulberry32(Date.now() >>> 0)
+
     this.add
-      .text(480, 270, 'モンスロ（仮）', {
-        fontSize: '48px',
-        color: '#ffd700',
+      .text(480, 40, 'モンスロ（仮）', { fontSize: '28px', color: '#ffd700' })
+      .setOrigin(0.5)
+
+    // リール窓と中央有効ライン
+    for (let reel = 0; reel < 3; reel++) {
+      this.add.rectangle(REEL_X[reel], 270, CELL_W, WINDOW_H, 0x000000, 0.4)
+      const column: Phaser.GameObjects.Image[] = []
+      for (let row = 0; row < 3; row++) {
+        const symbol = REEL_STRIP[(reel * 3 + row) % REEL_STRIP.length]
+        column.push(this.add.image(REEL_X[reel], ROW_Y[row], symbolTextureKey(symbol)))
+      }
+      this.cells.push(column)
+    }
+    this.add
+      .rectangle(480, 270, CELL_W * 3 + 40, 100)
+      .setStrokeStyle(3, 0xffd700, 0.9)
+
+    this.button = this.add
+      .text(480, 480, 'スピン', {
+        fontSize: '32px',
+        color: '#ffffff',
+        backgroundColor: '#7a2ea0',
+        padding: { x: 28, y: 10 },
       })
       .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+    this.button.on('pointerdown', () => this.onButton())
+  }
+
+  private onButton() {
+    if (this.phase === 'idle') this.startSpin()
+    else this.stopNextReel()
+  }
+
+  private startSpin() {
+    // 当選役はスピン開始時に確定（タイミング非依存）
+    const role = drawRole(this.rng)
+    this.outcome = resolveOutcome(role, this.rng)
+    this.stoppedCount = 0
+    this.phase = 'spinning'
+    this.button.setText('ストップ')
+    for (let reel = 0; reel < 3; reel++) {
+      this.spinTimers[reel] = this.time.addEvent({
+        delay: 60,
+        loop: true,
+        callback: () => this.shuffleReel(reel),
+      })
+    }
+  }
+
+  /** 回転中の見た目: 図柄を高速で入れ替える（結果には影響しない演出乱数） */
+  private shuffleReel(reel: number) {
+    for (let row = 0; row < 3; row++) {
+      const symbol = REEL_STRIP[Math.floor(this.rng() * REEL_STRIP.length)]
+      this.cells[reel][row].setTexture(symbolTextureKey(symbol))
+    }
+  }
+
+  private stopNextReel() {
+    if (!this.outcome) return
+    const reel = this.stoppedCount
+    this.spinTimers[reel]?.remove()
+    this.spinTimers[reel] = null
+    const window = reelWindow(this.outcome[reel])
+    for (let row = 0; row < 3; row++) {
+      this.cells[reel][row].setTexture(symbolTextureKey(window[row]))
+    }
+    this.stoppedCount++
+    if (this.stoppedCount === 3) {
+      this.phase = 'idle'
+      this.button.setText('スピン')
+    }
   }
 }
