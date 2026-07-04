@@ -60,6 +60,6 @@
     "priority": 9,
     "description": "リリース更新: README にアセット差し替え手順とAI生成クレジット欄の更新、package.sh の動作確認、dist/ 再生成。アセットが public/assets/ にあれば dist/ に同梱されることを確認",
     "steps": ["README v2 更新（差し替え手順・クレジット）", "package.sh で zip 生成", "public/assets/ が dist に含まれる（テスト用ダミーで確認）", "verify green"],
-    "passes": false
+    "passes": true
   }
 ]

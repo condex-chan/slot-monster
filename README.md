@@ -19,14 +19,16 @@ TypeScript + Phaser 3 + Vite 製。
 
 | 場面 | 操作 |
 |---|---|
-| メイン画面 | 「スピン」でリール回転 → 同じボタンを3回押して左から停止 |
+| メイン画面 | 「スピン」でリール回転（帯が上から下へスクロール）→ 同じボタンを3回押して左から停止 |
+| リーチ | 2リール一致で3リール目がスローになりラインが点滅。期待して止めよう |
 | フラッシュ役 | 3リール目の枠が**光った瞬間**に停止で満額（外すと半額の取りこぼし） |
 | バトル中 | 画面下のミニスロットでスピン継続。剣=全員追撃 / ハート=全員回復 / 星=先頭のスキル発動 |
 | 育成画面 | モンスターを選んでパーティスロットをクリックで編成。素材ボタンで餌やり |
 | 配合 | 「配合する」→ 親2体を選択 → 継承スキルを選ぶ（親は消滅、子にステータス上乗せ） |
 | オートスピン | 6階到達で解放。ONで自動周回（目押しは常に半額） |
+| サウンド | 🔊ボタンで BGM/SE を一括ミュート（設定は保存される） |
 
-セーブは自動（localStorage）。リロードで続きから再開できる。
+セーブは自動（localStorage）。初回プレイ時は3段階のガイドが出る。リロードで続きから再開できる。
 
 ## 開発
 
@@ -34,16 +36,34 @@ TypeScript + Phaser 3 + Vite 製。
 npm install
 npm run dev        # 開発サーバ
 npm run verify     # 検証ゲート一式（tsc + build + vitest + E2E）
+npm run assets     # public/assets/ を走査してアセットmanifestを再生成
 npm run build      # 本番ビルド → dist/
 bash scripts/package.sh  # itch.io アップロード用 zip 生成
 ```
 
 dist/ は相対パスで動作するため、itch.io などのサブパス配信にそのまま対応。
 
+## アセット差し替え（画像・BGM）
+
+ゲームはアセットが無くてもコード生成のプレースホルダーで完全動作する。
+外部生成した素材は**ファイルを置いて manifest を再生成するだけ**で組み込まれる。
+
+1. 素材を生成する（プロンプト集: `docs/v2/asset-guide-images.md` / `docs/v2/asset-guide-suno.md`）
+2. 規定のファイル名で配置する
+   - 図柄9種: `public/assets/images/symbols/<id>.png`（copper, silver, gold, egg, sword, heart, star, door, flash）
+   - モンスター15体: `public/assets/images/monsters/<id>.png`（wolfy, draco, pururu, ...）
+   - BGM: `public/assets/audio/bgm-main.mp3` / `bgm-battle.mp3` / `jingle-win.mp3`
+3. `npm run assets` で manifest を更新（manifest に載ったファイルだけがロードされる）
+4. `npm run verify` → `bash scripts/package.sh` で再パッケージ
+
+置かれていないアセットは自動でプレースホルダー（生成テクスチャ / 無音+WebAudio SE）に
+フォールバックする。存在しないファイルへのリクエストは発生しない（404を出さない）。
+
 ## クレジット
 
 - ゲームデザイン・実装: （あなたの名前）
-- アート: コード生成プレースホルダー（公開前にフリー素材へ差し替え予定）
-  - 差し替え先: （素材名 / 作者 / ライセンスを記載）
+- アート: コード生成プレースホルダー（画像生成AIによる差し替えに対応、手順は上記）
+  - 差し替え時はここに素材の生成手段・ライセンスを記載
+- BGM: [Suno](https://suno.com/) による AI 生成（bgm-main / bgm-battle / jingle-win）
 - SE: WebAudio による動的生成（外部音源なし）
 - エンジン: [Phaser 3](https://phaser.io/)
