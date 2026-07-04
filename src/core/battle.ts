@@ -67,7 +67,7 @@ export function makeCombatantFromInstance(
     atk: stats.atk,
     def: stats.def,
     spd: stats.spd,
-    skillId: s.skillId,
+    skillId: m.skillId,
   }
 }
 

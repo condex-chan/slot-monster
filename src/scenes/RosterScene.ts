@@ -1,8 +1,9 @@
 import Phaser from 'phaser'
 import { mulberry32, type Rng } from '../core/rng'
 import { assignToParty, getInstance, hatchEgg, totalStats } from '../core/collection'
+import { MIN_ROSTER_FOR_FUSION, fuse } from '../core/fusion'
 import { gameState } from '../core/state'
-import { getSpecies } from '../data/monsters'
+import { SKILLS, getSpecies } from '../data/monsters'
 import { monsterTextureKey } from '../assets/keys'
 
 // 育成画面: 孵化・手持ち一覧・パーティ編成。ロジックは core/collection.ts
@@ -19,6 +20,10 @@ export class RosterScene extends Phaser.Scene {
   private rosterContainer!: Phaser.GameObjects.Container
   private eggText!: Phaser.GameObjects.Text
   private infoText!: Phaser.GameObjects.Text
+  private fusionMode = false
+  private fusionPicks: string[] = []
+  private fusionButton!: Phaser.GameObjects.Text
+  private skillPanel: Phaser.GameObjects.Container | null = null
 
   constructor() {
     super('Roster')
@@ -68,6 +73,20 @@ export class RosterScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
     hatchBtn.on('pointerdown', () => this.hatch())
 
+    this.fusionMode = false
+    this.fusionPicks = []
+    this.skillPanel = null
+    this.fusionButton = this.add
+      .text(64, 108, '配合する', {
+        fontSize: '18px',
+        color: '#ffffff',
+        backgroundColor: '#8e24aa',
+        padding: { x: 12, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+    this.fusionButton.on('pointerdown', () => this.toggleFusionMode())
+
     this.infoText = this.add
       .text(480, 512, '', { fontSize: '16px', color: '#9cd8ff' })
       .setOrigin(0.5)
@@ -104,9 +123,14 @@ export class RosterScene extends Phaser.Scene {
       const row = Math.floor(idx / GRID_COLS)
       const x = 110 + col * 150
       const y = 258 + row * 108
-      if (m.uid === this.selectedUid) {
+      const highlighted = this.fusionMode
+        ? this.fusionPicks.includes(m.uid)
+        : m.uid === this.selectedUid
+      if (highlighted) {
         this.rosterContainer.add(
-          this.add.rectangle(x, y, 96, 96).setStrokeStyle(3, 0xffe24a),
+          this.add
+            .rectangle(x, y, 96, 96)
+            .setStrokeStyle(3, this.fusionMode ? 0xff5fd7 : 0xffe24a),
         )
       }
       const img = this.add
@@ -140,13 +164,113 @@ export class RosterScene extends Phaser.Scene {
   }
 
   private select(uid: string) {
+    if (this.fusionMode) {
+      this.pickFusionParent(uid)
+      return
+    }
     this.selectedUid = uid
     const m = getInstance(gameState, uid)
     const s = totalStats(m)
     this.infoText.setText(
-      `${getSpecies(m.speciesId).label}  HP${s.hp} こうげき${s.atk} ぼうぎょ${s.def} すばやさ${s.spd}`,
+      `${getSpecies(m.speciesId).label}  HP${s.hp} こうげき${s.atk} ぼうぎょ${s.def} すばやさ${s.spd}  わざ:${SKILLS[m.skillId].label}`,
     )
     this.rebuildRoster()
+  }
+
+  // ---- 配合フロー: モード開始 → 親2体選択 → 継承スキル選択 → 実行 ----
+
+  private toggleFusionMode() {
+    if (this.skillPanel) return
+    if (!this.fusionMode && gameState.roster.length < MIN_ROSTER_FOR_FUSION) {
+      this.infoText.setText(`配合には手持ち${MIN_ROSTER_FOR_FUSION}体以上が必要`)
+      return
+    }
+    this.fusionMode = !this.fusionMode
+    this.fusionPicks = []
+    this.fusionButton.setText(this.fusionMode ? '配合をやめる' : '配合する')
+    this.infoText.setText(this.fusionMode ? '親にする2体を選んでください' : '')
+    this.rebuildRoster()
+  }
+
+  private pickFusionParent(uid: string) {
+    if (this.skillPanel) return
+    const i = this.fusionPicks.indexOf(uid)
+    if (i >= 0) this.fusionPicks.splice(i, 1)
+    else if (this.fusionPicks.length < 2) this.fusionPicks.push(uid)
+    this.rebuildRoster()
+    if (this.fusionPicks.length === 2) this.showSkillChoice()
+  }
+
+  private showSkillChoice() {
+    const [a, b] = this.fusionPicks.map((uid) => getInstance(gameState, uid))
+    const panel = this.add.container(480, 270)
+    panel.add(this.add.rectangle(0, 0, 420, 180, 0x1a1026, 0.96).setStrokeStyle(2, 0xff5fd7))
+    panel.add(
+      this.add
+        .text(0, -60, '継承するスキルを選んでください', { fontSize: '18px', color: '#ffffff' })
+        .setOrigin(0.5),
+    )
+    const options: [string, string][] = [
+      [a.skillId, `${getSpecies(a.speciesId).label}の ${SKILLS[a.skillId].label}`],
+      [b.skillId, `${getSpecies(b.speciesId).label}の ${SKILLS[b.skillId].label}`],
+    ]
+    options.forEach(([skillId, label], idx) => {
+      const btn = this.add
+        .text(0, -18 + idx * 42, label, {
+          fontSize: '17px',
+          color: '#ffffff',
+          backgroundColor: '#8e24aa',
+          padding: { x: 14, y: 6 },
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true })
+      btn.on('pointerdown', () => this.executeFusion(skillId))
+      panel.add(btn)
+    })
+    const cancel = this.add
+      .text(0, 66, 'キャンセル', { fontSize: '14px', color: '#8899aa' })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true })
+    cancel.on('pointerdown', () => {
+      this.closeSkillPanel()
+      this.fusionPicks = []
+      this.rebuildRoster()
+    })
+    panel.add(cancel)
+    this.skillPanel = panel
+  }
+
+  private closeSkillPanel() {
+    this.skillPanel?.destroy(true)
+    this.skillPanel = null
+  }
+
+  private executeFusion(skillId: string) {
+    const [uidA, uidB] = this.fusionPicks
+    this.closeSkillPanel()
+    const child = fuse(gameState, uidA, uidB, skillId)
+    this.fusionMode = false
+    this.fusionPicks = []
+    this.selectedUid = null
+    this.fusionButton.setText('配合する')
+    this.refreshParty()
+    this.rebuildRoster()
+    const label = getSpecies(child.speciesId).label
+    this.infoText.setText('')
+    const banner = this.add
+      .text(480, 230, `新種誕生！ ${label}`, {
+        fontSize: '28px',
+        color: '#ff5fd7',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+    this.tweens.add({
+      targets: banner,
+      alpha: 0,
+      delay: 1300,
+      duration: 300,
+      onComplete: () => banner.destroy(),
+    })
   }
 
   private onPartySlot(slot: number) {

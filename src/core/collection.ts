@@ -29,6 +29,7 @@ export function hatchEgg(state: GameState, rng: Rng): MonsterInstance | null {
     uid: `m${state.nextUid++}`,
     speciesId,
     bonus: { hp: 0, atk: 0, def: 0, spd: 0 },
+    skillId: getSpecies(speciesId).skillId,
   }
   state.roster.push(m)
   return m

@@ -16,6 +16,8 @@ export interface MonsterInstance {
   uid: string
   speciesId: SpeciesId
   bonus: MonsterBonus
+  /** 所持スキル（配合で親から継承。基本は種族デフォルト） */
+  skillId: string
 }
 
 export interface GameState {
@@ -44,9 +46,9 @@ export function createInitialState(): GameState {
     coins: INITIAL_COINS,
     spinsSinceBattle: 0,
     roster: [
-      { uid: 'm1', speciesId: 'wolfy', bonus: zeroBonus() },
-      { uid: 'm2', speciesId: 'draco', bonus: zeroBonus() },
-      { uid: 'm3', speciesId: 'pururu', bonus: zeroBonus() },
+      { uid: 'm1', speciesId: 'wolfy', bonus: zeroBonus(), skillId: 'fang' },
+      { uid: 'm2', speciesId: 'draco', bonus: zeroBonus(), skillId: 'fireBreath' },
+      { uid: 'm3', speciesId: 'pururu', bonus: zeroBonus(), skillId: 'healDrop' },
     ],
     party: ['m1', 'm2', 'm3'],
     nextUid: 4,
