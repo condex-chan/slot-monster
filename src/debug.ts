@@ -18,6 +18,8 @@ export interface DebugApi {
   /** バトルを終局まで早送りする（結果画面まで進む） */
   fastForwardBattle(): void
   battleOver(): boolean
+  /** テクスチャの出所: 外部画像ならロード元URL、コード生成なら 'generated' */
+  textureSrc(key: string): string
 }
 
 declare global {
@@ -46,5 +48,9 @@ export function installDebugHooks(game: Phaser.Game): void {
     spinOnce: () => (game.scene.getScene('Main') as MainScene).debugSpinOnce(),
     fastForwardBattle: () => (game.scene.getScene('Battle') as BattleScene).debugFastForward(),
     battleOver: () => (game.scene.getScene('Battle') as BattleScene).isBattleOver(),
+    textureSrc: (key) => {
+      const image = game.textures.get(key).getSourceImage()
+      return image instanceof HTMLImageElement ? image.src : 'generated'
+    },
   }
 }

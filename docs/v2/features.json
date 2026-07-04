@@ -25,7 +25,7 @@
     "priority": 4,
     "description": "画像アセットパイプライン: scripts/gen-asset-manifest.mjs が public/assets/images/ を走査して src/assets/manifest.json を生成。Boot は manifest 記載のファイルだけを preload し、キー（keys.ts）が一致するものは生成テクスチャの代わりに使用。ファイルが無ければ完全フォールバック（404リクエストを発生させない）",
     "steps": ["manifest 生成スクリプトのユニットテスト", "manifest 空でも全機能が従来通り動く（E2E green）", "テスト用ダミーPNGを置いて manifest 生成→そのキーが画像で表示される確認手段がある"],
-    "passes": false
+    "passes": true
   },
   {
     "id": "V2-F5",
