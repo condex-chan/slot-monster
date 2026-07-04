@@ -111,16 +111,23 @@ export class MainScene extends Phaser.Scene {
         .setOrigin(0.5)
     })
 
-    const rosterBtn = this.add
-      .text(884, 480, '育成', {
-        fontSize: '22px',
-        color: '#ffffff',
-        backgroundColor: '#2e7d32',
-        padding: { x: 18, y: 8 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    rosterBtn.on('pointerdown', () => this.scene.start('Roster'))
+    const menu: [string, string, string][] = [
+      ['育成', 'Roster', '#2e7d32'],
+      ['図鑑', 'Dex', '#1565c0'],
+      ['確率表', 'Odds', '#5d4037'],
+    ]
+    menu.forEach(([label, sceneKey, color], i) => {
+      const btn = this.add
+        .text(884, 480 - i * 52, label, {
+          fontSize: '20px',
+          color: '#ffffff',
+          backgroundColor: color,
+          padding: { x: 14, y: 7 },
+        })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true })
+      btn.on('pointerdown', () => this.scene.start(sceneKey))
+    })
   }
 
   /** 残高表示とスピンボタンの有効/無効を状態から再計算する */

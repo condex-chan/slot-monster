@@ -1,7 +1,16 @@
 // 手持ちモンスターの管理（孵化・編成・実効ステータス）。pure TS・Phaser非依存
 import type { Rng } from './rng'
 import type { GameState, MonsterBonus, MonsterInstance } from './state'
-import { BASE_SPECIES, getSpecies } from '../data/monsters'
+import { BASE_SPECIES, getSpecies, type SpeciesId } from '../data/monsters'
+
+/** 図鑑に発見を記録する（重複なし） */
+export function discover(state: GameState, speciesId: SpeciesId): void {
+  if (!state.discovered.includes(speciesId)) state.discovered.push(speciesId)
+}
+
+export function isDiscovered(state: GameState, speciesId: SpeciesId): boolean {
+  return state.discovered.includes(speciesId)
+}
 
 export function getInstance(state: GameState, uid: string): MonsterInstance {
   const m = state.roster.find((x) => x.uid === uid)
@@ -32,6 +41,7 @@ export function hatchEgg(state: GameState, rng: Rng): MonsterInstance | null {
     skillId: getSpecies(speciesId).skillId,
   }
   state.roster.push(m)
+  discover(state, speciesId)
   return m
 }
 

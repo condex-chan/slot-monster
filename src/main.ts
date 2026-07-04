@@ -3,6 +3,8 @@ import { BootScene } from './scenes/BootScene'
 import { MainScene } from './scenes/MainScene'
 import { BattleScene } from './scenes/BattleScene'
 import { RosterScene } from './scenes/RosterScene'
+import { DexScene } from './scenes/DexScene'
+import { OddsScene } from './scenes/OddsScene'
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -14,5 +16,5 @@ new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, MainScene, BattleScene, RosterScene],
+  scene: [BootScene, MainScene, BattleScene, RosterScene, DexScene, OddsScene],
 })

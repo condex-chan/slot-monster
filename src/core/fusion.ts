@@ -1,6 +1,6 @@
 // 配合システム（pure TS・Phaser非依存）。
 // 系統×系統の組み合わせ表で新種が決まり、親は消滅、子に親のステータスの一部を上乗せする
-import { getInstance, totalStats } from './collection'
+import { discover, getInstance, totalStats } from './collection'
 import type { GameState, MonsterInstance } from './state'
 import { getSpecies, type Lineage, type SpeciesId } from '../data/monsters'
 
@@ -63,6 +63,7 @@ export function fuse(
   }
   state.roster = state.roster.filter((m) => m.uid !== uidA && m.uid !== uidB)
   state.roster.push(child)
+  discover(state, child.speciesId)
   // パーティ修復: 最初の親スロットは子、2体目は控えから補充
   for (let i = 0; i < state.party.length; i++) {
     const uid = state.party[i]
