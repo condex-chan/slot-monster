@@ -4,7 +4,9 @@ import { drawRole } from '../core/slot'
 import { REEL_STRIP, isReach, resolveOutcome, reelWindow, type Outcome } from '../core/reels'
 import { BET, canSpin, payoutFor } from '../core/economy'
 import { CEILING_SPINS, entersBattle, nextCeilingCount, spinsUntilCeiling } from '../core/ceiling'
+import { flashReward } from '../core/flash'
 import { gameState } from '../core/state'
+import { getMaterial } from '../data/materials'
 import type { RoleId } from '../data/paytable'
 import { getInstance } from '../core/collection'
 import { getSpecies } from '../data/monsters'
@@ -25,6 +27,11 @@ export class MainScene extends Phaser.Scene {
   private stoppedCount = 0
   private outcome: Outcome | null = null
   private currentRole: RoleId = 'none'
+  // 目押し（フラッシュ役）: 光っている瞬間に3リール目を止めると満額
+  private flashLit = false
+  private flashSuccess = false
+  private flashTimer: Phaser.Time.TimerEvent | null = null
+  private flashGlow: Phaser.GameObjects.Rectangle | null = null
   private coinText!: Phaser.GameObjects.Text
   private winText!: Phaser.GameObjects.Text
   private ceilingText!: Phaser.GameObjects.Text
@@ -156,6 +163,7 @@ export class MainScene extends Phaser.Scene {
     this.currentRole = drawRole(this.rng)
     this.outcome = resolveOutcome(this.currentRole, this.rng)
     this.stoppedCount = 0
+    this.flashSuccess = false
     this.phase = 'spinning'
     this.button.setText('ストップ')
     this.refreshCoinUi()
@@ -181,11 +189,19 @@ export class MainScene extends Phaser.Scene {
     const reel = this.stoppedCount
     this.spinTimers[reel]?.remove()
     this.spinTimers[reel] = null
+    // 3リール目: 目押し判定（光っている瞬間なら満額）
+    if (reel === 2 && this.currentRole === 'flash') {
+      this.flashSuccess = this.flashLit
+      this.stopFlashCue()
+    }
     const window = reelWindow(this.outcome[reel])
     for (let row = 0; row < 3; row++) {
       this.cells[reel][row].setTexture(symbolTextureKey(window[row]))
     }
     this.stoppedCount++
+    if (this.stoppedCount === 2 && this.currentRole === 'flash') {
+      this.startFlashCue()
+    }
     if (this.stoppedCount === 2 && isReach(this.outcome) && this.spinTimers[2]) {
       // リーチ演出: 3リール目の回転を遅くして期待の間を作る
       this.spinTimers[2].remove()
@@ -204,13 +220,52 @@ export class MainScene extends Phaser.Scene {
 
   /** 全リール停止後に払い出しを反映（表示出目と入金タイミングを一致させる） */
   private applyPayout() {
-    const payout = payoutFor(this.currentRole, BET)
-    if (payout > 0) {
-      gameState.coins += payout
-      this.winText.setText(`+${payout} コイン`)
+    if (this.currentRole === 'flash') {
+      const reward = flashReward(this.flashSuccess, BET, this.rng)
+      gameState.coins += reward.coins
+      for (const id of reward.materials) {
+        gameState.materials[id] = (gameState.materials[id] ?? 0) + 1
+      }
+      const materialNote = reward.materials.map((id) => getMaterial(id).label).join('・')
+      this.winText.setText(
+        this.flashSuccess
+          ? `目押し成功！ +${reward.coins} コイン & ${materialNote}`
+          : `取りこぼし… +${reward.coins} コイン`,
+      )
+    } else {
+      const payout = payoutFor(this.currentRole, BET)
+      if (payout > 0) {
+        gameState.coins += payout
+        this.winText.setText(`+${payout} コイン`)
+      }
     }
     this.refreshCoinUi()
     this.advanceCeiling()
+  }
+
+  /** フラッシュ役の視覚合図: 3リール目の枠が点滅する */
+  private startFlashCue() {
+    this.flashLit = false
+    this.flashGlow = this.add
+      .rectangle(REEL_X[2], 270, CELL_W + 12, 112)
+      .setStrokeStyle(5, 0x33e0ff, 1)
+      .setVisible(false)
+    this.flashTimer = this.time.addEvent({
+      delay: 200,
+      loop: true,
+      callback: () => {
+        this.flashLit = !this.flashLit
+        this.flashGlow?.setVisible(this.flashLit)
+      },
+    })
+  }
+
+  private stopFlashCue() {
+    this.flashTimer?.remove()
+    this.flashTimer = null
+    this.flashGlow?.destroy()
+    this.flashGlow = null
+    this.flashLit = false
   }
 
   /** 天井カウンタを進め、突入なら Battle シーンへ遷移する */
