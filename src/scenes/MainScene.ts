@@ -1,7 +1,14 @@
 import Phaser from 'phaser'
 import { mulberry32, type Rng } from '../core/rng'
 import { drawRole } from '../core/slot'
-import { REEL_STRIP, isReach, resolveOutcome, reelWindow, type Outcome } from '../core/reels'
+import { isReach, resolveOutcome, type Outcome } from '../core/reels'
+import {
+  CENTER_SLOT,
+  SLOT_COUNT,
+  bandShift,
+  bandSymbolAt,
+  snapPositionFor,
+} from '../core/reelband'
 import { BET, canSpin, payoutFor } from '../core/economy'
 import { CEILING_SPINS, entersBattle, nextCeilingCount, spinsUntilCeiling } from '../core/ceiling'
 import { flashReward } from '../core/flash'
@@ -17,16 +24,27 @@ import { sfx } from '../assets/sfx'
 
 // メイン画面: 表示と入力のみ。抽選・出目解決は src/core/ に委譲する
 const REEL_X = [360, 480, 600]
-const ROW_Y = [170, 270, 370]
 const CELL_W = 104
+const CELL_H = 100
 const WINDOW_H = 300
+// 帯スクロール: スロット0（窓上端の外）の基準y。中央スロットが有効ライン270に一致する
+const BAND_TOP = 270 - CENTER_SLOT * CELL_H
+// 回転速度（セル/秒）。リーチ時は3リール目を落として期待の間を作る
+const SPIN_SPEED = 14
+const REACH_SPEED = 3
+// 停止操作から減速スナップまでの最低移動量（急停止に見えない下限）
+const MIN_SNAP_TRAVEL = 1.2
 
 export class MainScene extends Phaser.Scene {
   private rng!: Rng
-  private cells: Phaser.GameObjects.Image[][] = []
-  private spinTimers: (Phaser.Time.TimerEvent | null)[] = [null, null, null]
+  // 帯スクロールリール: 位置はセル単位の連続量（core/reelband.ts の規約）
+  private bandImages: Phaser.GameObjects.Image[][] = []
+  private bandPos = [0, 0, 0]
+  private bandSpeed = [0, 0, 0]
+  private snapTweens: (Phaser.Tweens.Tween | null)[] = [null, null, null]
   private button!: Phaser.GameObjects.Text
   private phase: 'idle' | 'spinning' = 'idle'
+  private nextToStop = 0
   private stoppedCount = 0
   private outcome: Outcome | null = null
   private currentRole: RoleId = 'none'
@@ -73,15 +91,26 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0, 0)
     this.refreshCeilingUi()
 
-    // リール窓と中央有効ライン
+    // リール窓と中央有効ライン。図柄帯はマスクで窓外を隠しスクロールさせる
+    const maskShape = this.make
+      .graphics()
+      .fillRect(REEL_X[0] - CELL_W / 2, 270 - WINDOW_H / 2, REEL_X[2] - REEL_X[0] + CELL_W, WINDOW_H)
+    const bandMask = maskShape.createGeometryMask()
+    this.bandImages = []
     for (let reel = 0; reel < 3; reel++) {
       this.add.rectangle(REEL_X[reel], 270, CELL_W, WINDOW_H, 0x000000, 0.4)
       const column: Phaser.GameObjects.Image[] = []
-      for (let row = 0; row < 3; row++) {
-        const symbol = REEL_STRIP[(reel * 3 + row) % REEL_STRIP.length]
-        column.push(this.add.image(REEL_X[reel], ROW_Y[row], symbolTextureKey(symbol)))
+      for (let slot = 0; slot < SLOT_COUNT; slot++) {
+        column.push(
+          this.add
+            .image(REEL_X[reel], 0, symbolTextureKey(bandSymbolAt(0, slot)))
+            .setMask(bandMask),
+        )
       }
-      this.cells.push(column)
+      this.bandImages.push(column)
+      // 帯の初期位置をリールごとにずらして同じ縦並びに見えないようにする
+      this.bandPos[reel] = reel * 3
+      this.renderBand(reel)
     }
     this.add
       .rectangle(480, 270, CELL_W * 3 + 40, 100)
@@ -225,7 +254,26 @@ export class MainScene extends Phaser.Scene {
   debugSpinOnce(): void {
     if (this.phase !== 'idle' || !canSpin(gameState.coins, BET)) return
     this.startSpin()
-    for (let i = 0; i < 3; i++) this.stopNextReel()
+    for (let i = 0; i < 3; i++) this.stopNextReel(true)
+  }
+
+  /** 帯の現在位置をスロット画像の座標・テクスチャへ反映する */
+  private renderBand(reel: number) {
+    const p = this.bandPos[reel]
+    const shift = bandShift(p)
+    for (let slot = 0; slot < SLOT_COUNT; slot++) {
+      const img = this.bandImages[reel][slot]
+      img.y = BAND_TOP + (slot + shift) * CELL_H
+      img.setTexture(symbolTextureKey(bandSymbolAt(p, slot)))
+    }
+  }
+
+  update(_time: number, delta: number) {
+    for (let reel = 0; reel < 3; reel++) {
+      if (this.bandSpeed[reel] <= 0) continue
+      this.bandPos[reel] += (this.bandSpeed[reel] * delta) / 1000
+      this.renderBand(reel)
+    }
   }
 
   private startSpin() {
@@ -235,56 +283,66 @@ export class MainScene extends Phaser.Scene {
     // 当選役はスピン開始時に確定（タイミング非依存）
     this.currentRole = drawRole(this.rng)
     this.outcome = resolveOutcome(this.currentRole, this.rng)
+    this.nextToStop = 0
     this.stoppedCount = 0
     this.flashSuccess = false
     this.phase = 'spinning'
     this.button.setText('ストップ')
     this.refreshCoinUi()
     sfx.spin()
-    for (let reel = 0; reel < 3; reel++) {
-      this.spinTimers[reel] = this.time.addEvent({
-        delay: 60,
-        loop: true,
-        callback: () => this.shuffleReel(reel),
-      })
-    }
+    for (let reel = 0; reel < 3; reel++) this.bandSpeed[reel] = SPIN_SPEED
   }
 
-  /** 回転中の見た目: 図柄を高速で入れ替える（結果には影響しない演出乱数） */
-  private shuffleReel(reel: number) {
-    for (let row = 0; row < 3; row++) {
-      const symbol = REEL_STRIP[Math.floor(this.rng() * REEL_STRIP.length)]
-      this.cells[reel][row].setTexture(symbolTextureKey(symbol))
-    }
-  }
-
-  private stopNextReel() {
-    if (!this.outcome) return
-    const reel = this.stoppedCount
-    this.spinTimers[reel]?.remove()
-    this.spinTimers[reel] = null
-    // 3リール目: 目押し判定（光っている瞬間なら満額。オート中は常に半額）
+  /**
+   * 次のリールへ停止操作。帯は減速しながら出目位置へスナップする。
+   * immediate=true（E2E用）は演出を飛ばし即座に確定する
+   */
+  private stopNextReel(immediate = false) {
+    if (!this.outcome || this.nextToStop >= 3) return
+    const reel = this.nextToStop++
+    this.bandSpeed[reel] = 0
+    // 3リール目: 目押し判定は「押した瞬間」に光っていたか（オート中は常に半額）
     if (reel === 2 && this.currentRole === 'flash') {
       this.flashSuccess = resolveFlashSuccess(this.autoMode, this.flashLit)
       this.stopFlashCue()
     }
-    const window = reelWindow(this.outcome[reel])
-    for (let row = 0; row < 3; row++) {
-      this.cells[reel][row].setTexture(symbolTextureKey(window[row]))
+    const target = snapPositionFor(this.outcome[reel], this.bandPos[reel] + MIN_SNAP_TRAVEL)
+    if (immediate) {
+      this.bandPos[reel] = target
+      this.renderBand(reel)
+      this.finalizeStop()
+      return
     }
+    const proxy = { p: this.bandPos[reel] }
+    this.snapTweens[reel] = this.tweens.add({
+      targets: proxy,
+      p: target,
+      duration: 260 + (target - proxy.p) * 45,
+      ease: 'Cubic.easeOut',
+      onUpdate: () => {
+        this.bandPos[reel] = proxy.p
+        this.renderBand(reel)
+      },
+      onComplete: () => {
+        this.snapTweens[reel] = null
+        this.bandPos[reel] = target
+        this.renderBand(reel)
+        this.finalizeStop()
+      },
+    })
+  }
+
+  /** リール停止確定時の処理（減速スナップ完了後に呼ばれる） */
+  private finalizeStop() {
+    if (!this.outcome) return
     sfx.stop()
     this.stoppedCount++
     if (this.stoppedCount === 2 && this.currentRole === 'flash') {
       this.startFlashCue()
     }
-    if (this.stoppedCount === 2 && isReach(this.outcome) && this.spinTimers[2]) {
-      // リーチ演出: 3リール目の回転を遅くして期待の間を作る
-      this.spinTimers[2].remove()
-      this.spinTimers[2] = this.time.addEvent({
-        delay: 220,
-        loop: true,
-        callback: () => this.shuffleReel(2),
-      })
+    if (this.stoppedCount === 2 && isReach(this.outcome) && this.bandSpeed[2] > 0) {
+      // リーチ演出: 3リール目の帯を遅くして期待の間を作る
+      this.bandSpeed[2] = REACH_SPEED
     }
     if (this.stoppedCount === 3) {
       this.phase = 'idle'
