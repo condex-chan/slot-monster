@@ -39,6 +39,8 @@ export interface GameState {
   bestFloor: number
   /** 図鑑: 発見済み種族（入手した種族を記録） */
   discovered: SpeciesId[]
+  /** オートスピン設定（解放後のみ有効化できる） */
+  autoSpin: boolean
 }
 
 const zeroBonus = (): MonsterBonus => ({ hp: 0, atk: 0, def: 0, spd: 0 })
@@ -59,6 +61,7 @@ export function createInitialState(): GameState {
     floor: 1,
     bestFloor: 1,
     discovered: ['wolfy', 'draco', 'pururu'],
+    autoSpin: false,
   }
 }
 

@@ -5,6 +5,7 @@ import { REEL_STRIP, isReach, resolveOutcome, reelWindow, type Outcome } from '.
 import { BET, canSpin, payoutFor } from '../core/economy'
 import { CEILING_SPINS, entersBattle, nextCeilingCount, spinsUntilCeiling } from '../core/ceiling'
 import { flashReward } from '../core/flash'
+import { AUTO_UNLOCK_FLOOR, isAutoUnlocked, resolveFlashSuccess } from '../core/autospin'
 import { gameState } from '../core/state'
 import { getMaterial } from '../data/materials'
 import type { RoleId } from '../data/paytable'
@@ -32,6 +33,7 @@ export class MainScene extends Phaser.Scene {
   private flashSuccess = false
   private flashTimer: Phaser.Time.TimerEvent | null = null
   private flashGlow: Phaser.GameObjects.Rectangle | null = null
+  private autoButton!: Phaser.GameObjects.Text
   private coinText!: Phaser.GameObjects.Text
   private winText!: Phaser.GameObjects.Text
   private ceilingText!: Phaser.GameObjects.Text
@@ -95,7 +97,68 @@ export class MainScene extends Phaser.Scene {
     this.button.on('pointerdown', () => this.onButton())
 
     this.createPartyDisplay()
+    this.createAutoButton()
     this.refreshCoinUi()
+    // 解放済みかつON設定なら自動でループを再開する
+    if (gameState.autoSpin && isAutoUnlocked(gameState)) this.scheduleAutoSpin()
+  }
+
+  // ---- オートスピン（階層5クリアで解放、フラッシュは常に半額） ----
+
+  private get autoMode(): boolean {
+    return gameState.autoSpin && isAutoUnlocked(gameState)
+  }
+
+  private createAutoButton() {
+    this.autoButton = this.add
+      .text(660, 480, '', {
+        fontSize: '20px',
+        color: '#ffffff',
+        backgroundColor: '#455a64',
+        padding: { x: 14, y: 7 },
+      })
+      .setOrigin(0.5)
+    if (isAutoUnlocked(gameState)) {
+      this.autoButton.setInteractive({ useHandCursor: true })
+      this.autoButton.on('pointerdown', () => this.toggleAuto())
+    } else {
+      gameState.autoSpin = false
+      this.autoButton.setAlpha(0.45)
+    }
+    this.refreshAutoUi()
+  }
+
+  private refreshAutoUi() {
+    if (!isAutoUnlocked(gameState)) {
+      this.autoButton.setText(`オート(${AUTO_UNLOCK_FLOOR}F解放)`)
+      return
+    }
+    this.autoButton.setText(gameState.autoSpin ? 'オート: ON' : 'オート: OFF')
+    this.autoButton.setBackgroundColor(gameState.autoSpin ? '#c2185b' : '#455a64')
+  }
+
+  private toggleAuto() {
+    gameState.autoSpin = !gameState.autoSpin
+    this.refreshAutoUi()
+    if (this.autoMode && this.phase === 'idle') this.scheduleAutoSpin()
+  }
+
+  private scheduleAutoSpin() {
+    this.time.delayedCall(450, () => {
+      if (!this.autoMode || this.phase !== 'idle') return
+      if (!canSpin(gameState.coins, BET)) {
+        gameState.autoSpin = false
+        this.refreshAutoUi()
+        return
+      }
+      this.startSpin()
+      // 自動停止: 左から順に止める
+      ;[600, 1050, 1500].forEach((delay) => {
+        this.time.delayedCall(delay, () => {
+          if (this.autoMode && this.phase === 'spinning') this.stopNextReel()
+        })
+      })
+    })
   }
 
   /** パーティ3体を左下に表示（待機モーションの上下ゆれ） */
@@ -189,9 +252,9 @@ export class MainScene extends Phaser.Scene {
     const reel = this.stoppedCount
     this.spinTimers[reel]?.remove()
     this.spinTimers[reel] = null
-    // 3リール目: 目押し判定（光っている瞬間なら満額）
+    // 3リール目: 目押し判定（光っている瞬間なら満額。オート中は常に半額）
     if (reel === 2 && this.currentRole === 'flash') {
-      this.flashSuccess = this.flashLit
+      this.flashSuccess = resolveFlashSuccess(this.autoMode, this.flashLit)
       this.stopFlashCue()
     }
     const window = reelWindow(this.outcome[reel])
@@ -279,6 +342,8 @@ export class MainScene extends Phaser.Scene {
       this.button.setAlpha(0.4)
       this.winText.setText('バトルラッシュ突入！')
       this.time.delayedCall(700, () => this.scene.start('Battle'))
+    } else if (this.autoMode) {
+      this.scheduleAutoSpin()
     }
   }
 
