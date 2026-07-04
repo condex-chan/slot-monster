@@ -1,5 +1,7 @@
 import Phaser from 'phaser'
 import { bgm } from '../assets/bgm'
+import { addButton } from '../ui/button'
+import { fadeIn, fadeToScene } from '../ui/transitions'
 import { PAYTABLE, type RoleId } from '../data/paytable'
 
 // 確率表: 役テーブルの実値を常時公開する（「確率を大事に」の見える化、design.md）
@@ -22,6 +24,7 @@ export class OddsScene extends Phaser.Scene {
 
   create() {
     bgm.enter(this, 'Odds')
+    fadeIn(this)
     this.add
       .text(480, 36, '確率表', { fontSize: '26px', color: '#ffd700' })
       .setOrigin(0.5)
@@ -58,15 +61,9 @@ export class OddsScene extends Phaser.Scene {
       color: '#8899aa',
     })
 
-    const back = this.add
-      .text(884, 40, 'もどる', {
-        fontSize: '20px',
-        color: '#ffffff',
-        backgroundColor: '#7a2ea0',
-        padding: { x: 16, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    back.on('pointerdown', () => this.scene.start('Main'))
+    addButton(this, 884, 40, 'もどる', {
+      padding: { x: 16, y: 6 },
+      onClick: () => fadeToScene(this, 'Main'),
+    })
   }
 }

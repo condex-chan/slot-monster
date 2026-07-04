@@ -24,6 +24,8 @@ import { monsterTextureKey, symbolTextureKey } from '../assets/keys'
 import { sfx } from '../assets/sfx'
 import { bgm } from '../assets/bgm'
 import { addMuteButton } from '../ui/muteButton'
+import { addButton, setButtonColor } from '../ui/button'
+import { fadeIn, fadeToScene } from '../ui/transitions'
 
 // メイン画面: 表示と入力のみ。抽選・出目解決は src/core/ に委譲する
 const REEL_X = [360, 480, 600]
@@ -70,6 +72,7 @@ export class MainScene extends Phaser.Scene {
   create() {
     this.rng = mulberry32(Date.now() >>> 0)
     bgm.enter(this, 'Main')
+    fadeIn(this)
 
     this.add
       .text(480, 40, 'モンスロ（仮）', { fontSize: '28px', color: '#ffd700' })
@@ -122,16 +125,11 @@ export class MainScene extends Phaser.Scene {
       .rectangle(480, 270, CELL_W * 3 + 40, 100)
       .setStrokeStyle(3, 0xffd700, 0.9)
 
-    this.button = this.add
-      .text(480, 480, 'スピン', {
-        fontSize: '32px',
-        color: '#ffffff',
-        backgroundColor: '#7a2ea0',
-        padding: { x: 28, y: 10 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    this.button.on('pointerdown', () => this.onButton())
+    this.button = addButton(this, 480, 480, 'スピン', {
+      fontSize: 32,
+      padding: { x: 28, y: 10 },
+      onClick: () => this.onButton(),
+    })
 
     this.createPartyDisplay()
     this.createAutoButton()
@@ -158,19 +156,13 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createAutoButton() {
-    this.autoButton = this.add
-      .text(660, 480, '', {
-        fontSize: '20px',
-        color: '#ffffff',
-        backgroundColor: '#455a64',
-        padding: { x: 14, y: 7 },
-      })
-      .setOrigin(0.5)
-    if (isAutoUnlocked(gameState)) {
-      this.autoButton.setInteractive({ useHandCursor: true })
-      this.autoButton.on('pointerdown', () => this.toggleAuto())
-    } else {
+    this.autoButton = addButton(this, 660, 480, '', {
+      color: '#455a64',
+      onClick: () => this.toggleAuto(),
+    })
+    if (!isAutoUnlocked(gameState)) {
       gameState.autoSpin = false
+      this.autoButton.disableInteractive()
       this.autoButton.setAlpha(0.45)
     }
     this.refreshAutoUi()
@@ -182,7 +174,7 @@ export class MainScene extends Phaser.Scene {
       return
     }
     this.autoButton.setText(gameState.autoSpin ? 'オート: ON' : 'オート: OFF')
-    this.autoButton.setBackgroundColor(gameState.autoSpin ? '#c2185b' : '#455a64')
+    setButtonColor(this.autoButton, gameState.autoSpin ? '#c2185b' : '#455a64')
   }
 
   private toggleAuto() {
@@ -236,16 +228,10 @@ export class MainScene extends Phaser.Scene {
       ['確率表', 'Odds', '#5d4037'],
     ]
     menu.forEach(([label, sceneKey, color], i) => {
-      const btn = this.add
-        .text(884, 480 - i * 52, label, {
-          fontSize: '20px',
-          color: '#ffffff',
-          backgroundColor: color,
-          padding: { x: 14, y: 7 },
-        })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true })
-      btn.on('pointerdown', () => this.scene.start(sceneKey))
+      addButton(this, 884, 480 - i * 52, label, {
+        color,
+        onClick: () => fadeToScene(this, sceneKey),
+      })
     })
   }
 
@@ -468,7 +454,7 @@ export class MainScene extends Phaser.Scene {
       this.button.disableInteractive()
       this.button.setAlpha(0.4)
       this.playRushCutin()
-      this.time.delayedCall(1000, () => this.scene.start('Battle'))
+      this.time.delayedCall(1000, () => fadeToScene(this, 'Battle'))
     } else if (this.autoMode) {
       this.scheduleAutoSpin()
     }

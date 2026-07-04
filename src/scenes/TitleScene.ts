@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
 import { bgm } from '../assets/bgm'
 import { hasSavedGame } from '../core/save'
+import { addButton } from '../ui/button'
+import { fadeIn, fadeToScene } from '../ui/transitions'
 
 // タイトル画面: 表示と入力のみ。セーブ復元は Boot 済みなので、
 // ここでは「つづきから」かどうかの文言判定だけを行う
@@ -11,6 +13,7 @@ export class TitleScene extends Phaser.Scene {
 
   create() {
     bgm.enter(this, 'Title')
+    fadeIn(this)
     this.add
       .text(480, 170, 'モンスロ（仮）', {
         fontSize: '64px',
@@ -27,16 +30,11 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5)
 
     const label = hasSavedGame() ? 'つづきから' : 'スタート'
-    const button = this.add
-      .text(480, 380, label, {
-        fontSize: '30px',
-        color: '#ffffff',
-        backgroundColor: '#7a2ea0',
-        padding: { x: 36, y: 12 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    button.on('pointerdown', () => this.scene.start('Main'))
+    const button = addButton(this, 480, 380, label, {
+      fontSize: 30,
+      padding: { x: 36, y: 12 },
+      onClick: () => fadeToScene(this, 'Main'),
+    })
 
     // 目を引く軽い明滅（操作は待たせない）
     this.tweens.add({

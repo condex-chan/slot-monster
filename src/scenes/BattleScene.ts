@@ -22,6 +22,9 @@ import { monsterTextureKey, symbolTextureKey } from '../assets/keys'
 import { sfx } from '../assets/sfx'
 import { bgm } from '../assets/bgm'
 import { addMuteButton } from '../ui/muteButton'
+import { addButton } from '../ui/button'
+import { addPanel } from '../ui/panel'
+import { fadeIn, fadeToScene } from '../ui/transitions'
 
 // バトル画面: BattleSim のイベント列を再生するだけ。戦闘の意思決定は core/battle.ts
 const PARTY_X = 220
@@ -66,6 +69,7 @@ export class BattleScene extends Phaser.Scene {
     this.time.timeScale = 1
     this.tweens.timeScale = 1
     bgm.enter(this, 'Battle')
+    fadeIn(this)
     addMuteButton(this, 936, 20)
     this.rng = mulberry32(Date.now() >>> 0)
     const party = gameState.party.map((uid, i) =>
@@ -120,7 +124,7 @@ export class BattleScene extends Phaser.Scene {
   private showBoostGuide() {
     const panel = this.add.container(480, 270).setDepth(120)
     this.boostGuidePanel = panel
-    panel.add(this.add.rectangle(0, 0, 560, 220, 0x1a1026, 0.95).setStrokeStyle(2, 0xffe24a))
+    panel.add(addPanel(this, 0, 0, 560, 220, 0.95))
     panel.add(
       this.add
         .text(0, -72, '③ ラッシュ中もスピンでブースト！', {
@@ -140,18 +144,13 @@ export class BattleScene extends Phaser.Scene {
         })
         .setOrigin(0.5),
     )
-    const ok = this.add
-      .text(0, 78, 'OK！', {
-        fontSize: '22px',
-        color: '#ffffff',
-        backgroundColor: '#7a2ea0',
-        padding: { x: 26, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    ok.on('pointerdown', () => {
-      this.dismissBoostGuide()
-      persistToLocalStorage(gameState)
+    const ok = addButton(this, 0, 78, 'OK！', {
+      fontSize: 22,
+      padding: { x: 26, y: 6 },
+      onClick: () => {
+        this.dismissBoostGuide()
+        persistToLocalStorage(gameState)
+      },
     })
     panel.add(ok)
   }
@@ -169,16 +168,11 @@ export class BattleScene extends Phaser.Scene {
         this.add.image(SLOT_X[i], SLOT_Y2, symbolTextureKey(REEL_STRIP[i])).setScale(0.6),
       )
     }
-    this.slotButton = this.add
-      .text(672, SLOT_Y2, 'スピン', {
-        fontSize: '22px',
-        color: '#ffffff',
-        backgroundColor: '#7a2ea0',
-        padding: { x: 16, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    this.slotButton.on('pointerdown', () => this.onSlotButton())
+    this.slotButton = addButton(this, 672, SLOT_Y2, 'スピン', {
+      fontSize: 22,
+      padding: { x: 16, y: 6 },
+      onClick: () => this.onSlotButton(),
+    })
     this.refreshSlotUi()
   }
 
@@ -388,7 +382,7 @@ export class BattleScene extends Phaser.Scene {
     } else {
       sfx.defeat()
     }
-    this.add.rectangle(480, 270, 460, 320, 0x1a1026, 0.92)
+    addPanel(this, 480, 270, 460, 320)
     this.add
       .text(480, 160, won ? '勝利！' : '敗北…', {
         fontSize: '52px',
@@ -413,15 +407,10 @@ export class BattleScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
 
-    const back = this.add
-      .text(480, 370, 'メインへ戻る', {
-        fontSize: '26px',
-        color: '#ffffff',
-        backgroundColor: '#7a2ea0',
-        padding: { x: 24, y: 8 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    back.on('pointerdown', () => this.scene.start('Main'))
+    addButton(this, 480, 370, 'メインへ戻る', {
+      fontSize: 26,
+      padding: { x: 24, y: 8 },
+      onClick: () => fadeToScene(this, 'Main'),
+    })
   }
 }
