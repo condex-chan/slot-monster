@@ -10,7 +10,9 @@ import {
 import { drawRole } from '../core/slot'
 import { REEL_STRIP, resolveOutcome, type Outcome } from '../core/reels'
 import { BET, canSpin, payoutFor } from '../core/economy'
+import { applyRewards, computeRewards } from '../core/rewards'
 import { gameState } from '../core/state'
+import { getMaterial } from '../data/materials'
 import type { RoleId } from '../data/paytable'
 import { monsterTextureKey, symbolTextureKey } from '../assets/keys'
 
@@ -43,6 +45,8 @@ export class BattleScene extends Phaser.Scene {
   private slotOutcome: Outcome | null = null
   private slotRole: RoleId = 'none'
   private coinText!: Phaser.GameObjects.Text
+  /** このバトル中に投入したコイン（敗北保険の算定基準） */
+  private spentCoins = 0
 
   constructor() {
     super('Battle')
@@ -131,6 +135,7 @@ export class BattleScene extends Phaser.Scene {
   private startBattleSpin() {
     if (this.sim.over || !canSpin(gameState.coins, BET)) return
     gameState.coins -= BET
+    this.spentCoins += BET
     this.slotRole = drawRole(this.rng)
     this.slotOutcome = resolveOutcome(this.slotRole, this.rng)
     this.slotStopped = 0
@@ -263,16 +268,40 @@ export class BattleScene extends Phaser.Scene {
     })
   }
 
-  /** 勝敗表示。報酬付与は F10 で実装する */
+  /** 勝敗と報酬内訳の結果画面。報酬はここで一度だけ状態に反映する */
   private showResult(won: boolean) {
+    const rewards = computeRewards(won, this.spentCoins, 1, this.rng)
+    applyRewards(gameState, rewards)
+    this.spentCoins = 0
+    this.refreshSlotUi()
+
+    this.add.rectangle(480, 270, 460, 320, 0x1a1026, 0.92)
     this.add
-      .text(480, 240, won ? '勝利！' : '敗北…', {
+      .text(480, 160, won ? '勝利！' : '敗北…', {
         fontSize: '52px',
         color: won ? '#ffd700' : '#8899aa',
       })
       .setOrigin(0.5)
+
+    const lines = [`コイン +${rewards.coins}${won ? '' : '（保険）'}`]
+    if (rewards.eggs > 0) lines.push(`タマゴ ×${rewards.eggs}`)
+    const counts = new Map<string, number>()
+    for (const id of rewards.materials) {
+      const label = getMaterial(id).label
+      counts.set(label, (counts.get(label) ?? 0) + 1)
+    }
+    for (const [label, n] of counts) lines.push(`${label} ×${n}`)
+    this.add
+      .text(480, 250, lines.join('\n'), {
+        fontSize: '22px',
+        color: '#ffffff',
+        align: 'center',
+        lineSpacing: 10,
+      })
+      .setOrigin(0.5)
+
     const back = this.add
-      .text(480, 330, 'メインへ戻る', {
+      .text(480, 370, 'メインへ戻る', {
         fontSize: '26px',
         color: '#ffffff',
         backgroundColor: '#7a2ea0',
