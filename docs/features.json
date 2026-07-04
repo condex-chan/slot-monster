@@ -53,7 +53,7 @@
     "priority": 8,
     "description": "自動戦闘エンジン: パーティ3体vs敵グループ、SPD順に自動で行動し勝敗が決まる pure TS モジュール。vitest でダメージ計算・勝敗判定を検証",
     "steps": ["src/core/battle.ts に戦闘ロジック", "強パーティが弱敵に勝つ/逆は負けるテスト", "Battle シーンで行動がアニメーション表示される"],
-    "passes": false
+    "passes": true
   },
   {
     "id": "F9",
