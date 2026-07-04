@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mulberry32 } from '../src/core/rng'
-import { REEL_STRIP, reelWindow, resolveOutcome } from '../src/core/reels'
+import { REEL_STRIP, isReach, reelWindow, resolveOutcome } from '../src/core/reels'
 import { PAYTABLE } from '../src/data/paytable'
 
 describe('REEL_STRIP', () => {
@@ -28,6 +28,13 @@ describe('resolveOutcome — 表示出目と抽選結果の整合', () => {
       expect(REEL_STRIP).toContain(b)
       expect(REEL_STRIP).toContain(c)
     }
+  })
+})
+
+describe('isReach', () => {
+  it('先2リール一致でリーチ、不一致でリーチでない', () => {
+    expect(isReach(['door', 'door', 'copper'])).toBe(true)
+    expect(isReach(['door', 'copper', 'door'])).toBe(false)
   })
 })
 

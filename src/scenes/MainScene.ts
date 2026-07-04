@@ -1,9 +1,10 @@
 import Phaser from 'phaser'
 import { mulberry32, type Rng } from '../core/rng'
 import { drawRole } from '../core/slot'
-import { REEL_STRIP, resolveOutcome, reelWindow, type Outcome } from '../core/reels'
-import { BET, INITIAL_COINS, canSpin, payoutFor } from '../core/economy'
+import { REEL_STRIP, isReach, resolveOutcome, reelWindow, type Outcome } from '../core/reels'
+import { BET, canSpin, payoutFor } from '../core/economy'
 import { CEILING_SPINS, entersBattle, nextCeilingCount, spinsUntilCeiling } from '../core/ceiling'
+import { gameState } from '../core/state'
 import type { RoleId } from '../data/paytable'
 import { symbolTextureKey } from '../assets/keys'
 
@@ -22,10 +23,8 @@ export class MainScene extends Phaser.Scene {
   private stoppedCount = 0
   private outcome: Outcome | null = null
   private currentRole: RoleId = 'none'
-  private coins = INITIAL_COINS
   private coinText!: Phaser.GameObjects.Text
   private winText!: Phaser.GameObjects.Text
-  private spinsSinceBattle = 0
   private ceilingText!: Phaser.GameObjects.Text
   private ceilingBar!: Phaser.GameObjects.Rectangle
 
@@ -85,8 +84,8 @@ export class MainScene extends Phaser.Scene {
 
   /** 残高表示とスピンボタンの有効/無効を状態から再計算する */
   private refreshCoinUi() {
-    this.coinText.setText(`コイン: ${this.coins}`)
-    const spinnable = this.phase === 'spinning' || canSpin(this.coins, BET)
+    this.coinText.setText(`コイン: ${gameState.coins}`)
+    const spinnable = this.phase === 'spinning' || canSpin(gameState.coins, BET)
     if (spinnable) {
       this.button.setInteractive({ useHandCursor: true })
       this.button.setAlpha(1)
@@ -102,8 +101,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   private startSpin() {
-    if (!canSpin(this.coins, BET)) return
-    this.coins -= BET
+    if (!canSpin(gameState.coins, BET)) return
+    gameState.coins -= BET
     this.winText.setText('')
     // 当選役はスピン開始時に確定（タイミング非依存）
     this.currentRole = drawRole(this.rng)
@@ -139,6 +138,15 @@ export class MainScene extends Phaser.Scene {
       this.cells[reel][row].setTexture(symbolTextureKey(window[row]))
     }
     this.stoppedCount++
+    if (this.stoppedCount === 2 && isReach(this.outcome) && this.spinTimers[2]) {
+      // リーチ演出: 3リール目の回転を遅くして期待の間を作る
+      this.spinTimers[2].remove()
+      this.spinTimers[2] = this.time.addEvent({
+        delay: 220,
+        loop: true,
+        callback: () => this.shuffleReel(2),
+      })
+    }
     if (this.stoppedCount === 3) {
       this.phase = 'idle'
       this.button.setText('スピン')
@@ -150,22 +158,29 @@ export class MainScene extends Phaser.Scene {
   private applyPayout() {
     const payout = payoutFor(this.currentRole, BET)
     if (payout > 0) {
-      this.coins += payout
+      gameState.coins += payout
       this.winText.setText(`+${payout} コイン`)
     }
     this.refreshCoinUi()
     this.advanceCeiling()
   }
 
-  /** 天井カウンタを進める。突入判定は F6 でシーン遷移に接続する */
+  /** 天井カウンタを進め、突入なら Battle シーンへ遷移する */
   private advanceCeiling() {
-    const entered = entersBattle(this.currentRole, this.spinsSinceBattle)
-    this.spinsSinceBattle = nextCeilingCount(entered, this.spinsSinceBattle)
+    const entered = entersBattle(this.currentRole, gameState.spinsSinceBattle)
+    gameState.spinsSinceBattle = nextCeilingCount(entered, gameState.spinsSinceBattle)
     this.refreshCeilingUi()
+    if (entered) {
+      // 出目を見せてから遷移。待ち時間中の誤操作は無効化
+      this.button.disableInteractive()
+      this.button.setAlpha(0.4)
+      this.winText.setText('バトルラッシュ突入！')
+      this.time.delayedCall(700, () => this.scene.start('Battle'))
+    }
   }
 
   private refreshCeilingUi() {
-    const remaining = spinsUntilCeiling(this.spinsSinceBattle)
+    const remaining = spinsUntilCeiling(gameState.spinsSinceBattle)
     this.ceilingText.setText(`天井まで あと${remaining}スピン`)
     this.ceilingBar.width = 200 * (remaining / CEILING_SPINS)
   }

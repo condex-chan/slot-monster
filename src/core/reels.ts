@@ -21,6 +21,11 @@ export function resolveOutcome(role: RoleId, rng: Rng): Outcome {
   return [a, b, c]
 }
 
+/** リーチ判定: 先に止まる2リールの出目が一致しているか */
+export function isReach(outcome: Outcome): boolean {
+  return outcome[0] === outcome[1]
+}
+
 /** 停止時にリール窓（上中下3段）へ出す図柄。中央=出目、上下=帯の隣接図柄 */
 export function reelWindow(center: SymbolId): [SymbolId, SymbolId, SymbolId] {
   const n = REEL_STRIP.length
