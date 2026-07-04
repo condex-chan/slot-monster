@@ -1,4 +1,8 @@
 {
   "images": {},
-  "audio": {}
+  "audio": {
+    "bgm-battle": "assets/audio/bgm-battle.mp3",
+    "bgm-main": "assets/audio/bgm-main.mp3",
+    "jingle-win": "assets/audio/jingle-win.mp3"
+  }
 }
