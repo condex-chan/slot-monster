@@ -1,21 +1,12 @@
 import Phaser from 'phaser'
+import { BootScene } from './scenes/BootScene'
+import { MainScene } from './scenes/MainScene'
+import { BattleScene } from './scenes/BattleScene'
+import { RosterScene } from './scenes/RosterScene'
+import { DexScene } from './scenes/DexScene'
+import { OddsScene } from './scenes/OddsScene'
 
-class BootScene extends Phaser.Scene {
-  constructor() {
-    super('Boot')
-  }
-
-  create() {
-    this.add
-      .text(480, 270, 'モンスロ（仮）', {
-        fontSize: '48px',
-        color: '#ffd700',
-      })
-      .setOrigin(0.5)
-  }
-}
-
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   width: 960,
@@ -25,5 +16,10 @@ new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene],
+  scene: [BootScene, MainScene, BattleScene, RosterScene, DexScene, OddsScene],
 })
+
+// E2E/dev ビルドでのみ __DEBUG__ フックを露出（本番 dist には含めない）
+if (import.meta.env.MODE !== 'production') {
+  void import('./debug').then((m) => m.installDebugHooks(game))
+}
