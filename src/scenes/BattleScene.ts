@@ -8,17 +8,24 @@ import {
   type BoostKind,
 } from '../core/battle'
 import { getInstance } from '../core/collection'
+import { isAutoUnlocked } from '../core/autospin'
 import { advanceFloor, isBossFloor } from '../core/floors'
 import { drawRole } from '../core/slot'
 import { REEL_STRIP, resolveOutcome, type Outcome } from '../core/reels'
-import { BET, canSpin, payoutFor } from '../core/economy'
+import { BET, canSpin, eggsFor, payoutFor } from '../core/economy'
 import { applyRewards, computeRewards } from '../core/rewards'
+import { nextGuideStep, shouldShowBoostGuide } from '../core/onboarding'
 import { persistToLocalStorage } from '../core/save'
 import { gameState } from '../core/state'
 import { getMaterial } from '../data/materials'
 import type { RoleId } from '../data/paytable'
 import { monsterTextureKey, symbolTextureKey } from '../assets/keys'
 import { sfx } from '../assets/sfx'
+import { bgm } from '../assets/bgm'
+import { addMuteButton } from '../ui/muteButton'
+import { addButton } from '../ui/button'
+import { addPanel } from '../ui/panel'
+import { fadeIn, fadeToScene } from '../ui/transitions'
 
 // バトル画面: BattleSim のイベント列を再生するだけ。戦闘の意思決定は core/battle.ts
 const PARTY_X = 220
@@ -51,6 +58,7 @@ export class BattleScene extends Phaser.Scene {
   private coinText!: Phaser.GameObjects.Text
   /** このバトル中に投入したコイン（敗北保険の算定基準） */
   private spentCoins = 0
+  private boostGuidePanel: Phaser.GameObjects.Container | null = null
 
   constructor() {
     super('Battle')
@@ -61,6 +69,9 @@ export class BattleScene extends Phaser.Scene {
     // ヒットストップ中にシーンが切り替わっても時間が止まったままにならないよう常に復帰
     this.time.timeScale = 1
     this.tweens.timeScale = 1
+    bgm.enter(this, 'Battle')
+    fadeIn(this)
+    addMuteButton(this, 936, 20)
     this.rng = mulberry32(Date.now() >>> 0)
     const party = gameState.party.map((uid, i) =>
       makeCombatantFromInstance(getInstance(gameState, uid), 'party', i),
@@ -73,6 +84,7 @@ export class BattleScene extends Phaser.Scene {
       .text(480, 44, `バトルラッシュ！ ${gameState.floor}F${bossMark}`, {
         fontSize: '34px',
         color: '#ff5fd7',
+        padding: { top: 6 },
       })
       .setOrigin(0.5)
 
@@ -99,6 +111,70 @@ export class BattleScene extends Phaser.Scene {
     })
 
     this.createMiniSlot()
+    if (shouldShowBoostGuide(gameState.guide)) this.showBoostGuide()
+    // オート解放済み+ONならバトル中のミニスロットも自動で回す（メインのオートと同じ扱い）
+    if (this.autoBattleMode) this.time.delayedCall(900, () => this.autoBattleTick())
+  }
+
+  private get autoBattleMode(): boolean {
+    return gameState.autoSpin && isAutoUnlocked(gameState)
+  }
+
+  /** オート時のバトルスピン: 定期的にスピン→順に停止。終局か資金切れで止まる */
+  private autoBattleTick() {
+    if (!this.autoBattleMode || this.sim.over) return
+    if (this.slotPhase === 'idle' && canSpin(gameState.coins, BET)) {
+      this.startBattleSpin()
+      ;[400, 750, 1100].forEach((delay) => {
+        this.time.delayedCall(delay, () => {
+          if (this.slotPhase === 'spinning') this.stopNextCell()
+        })
+      })
+    }
+    this.time.delayedCall(1600, () => this.autoBattleTick())
+  }
+
+  /** 説明を閉じて完了扱いにする（保存は直後の保存フックに任せる場合もある） */
+  private dismissBoostGuide() {
+    if (!this.boostGuidePanel) return
+    gameState.guide = nextGuideStep(gameState.guide, 'boostExplained')
+    this.boostGuidePanel.destroy()
+    this.boostGuidePanel = null
+  }
+
+  /** 初ラッシュ時のみのブースト説明。閉じたら完了フラグを保存し二度と出さない */
+  private showBoostGuide() {
+    const panel = this.add.container(480, 270).setDepth(120)
+    this.boostGuidePanel = panel
+    panel.add(addPanel(this, 0, 0, 560, 220, 0.95))
+    panel.add(
+      this.add
+        .text(0, -72, '③ ラッシュ中もスピンでブースト！', {
+          fontSize: '24px',
+          color: '#ffe24a',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5),
+    )
+    panel.add(
+      this.add
+        .text(0, -8, '剣が揃うと 全員追撃\nハートが揃うと 全員回復\n星が揃うと 先頭がスキル発動', {
+          fontSize: '19px',
+          color: '#ffffff',
+          align: 'center',
+          lineSpacing: 8,
+        })
+        .setOrigin(0.5),
+    )
+    const ok = addButton(this, 0, 78, 'OK！', {
+      fontSize: 22,
+      padding: { x: 26, y: 6 },
+      onClick: () => {
+        this.dismissBoostGuide()
+        persistToLocalStorage(gameState)
+      },
+    })
+    panel.add(ok)
   }
 
   // ---- ラッシュ中ミニスロット（スピン継続でブースト） ----
@@ -107,23 +183,22 @@ export class BattleScene extends Phaser.Scene {
     this.slotCells = []
     this.slotTimers = [null, null, null]
     this.slotPhase = 'idle'
-    this.coinText = this.add.text(24, 24, '', { fontSize: '20px', color: '#ffe24a' })
+    this.coinText = this.add.text(24, 24, '', {
+      fontSize: '20px',
+      color: '#ffe24a',
+      padding: { top: 4 },
+    })
     this.add.rectangle(480, SLOT_Y2, 260, 72, 0x000000, 0.45)
     for (let i = 0; i < 3; i++) {
       this.slotCells.push(
         this.add.image(SLOT_X[i], SLOT_Y2, symbolTextureKey(REEL_STRIP[i])).setScale(0.6),
       )
     }
-    this.slotButton = this.add
-      .text(672, SLOT_Y2, 'スピン', {
-        fontSize: '22px',
-        color: '#ffffff',
-        backgroundColor: '#7a2ea0',
-        padding: { x: 16, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    this.slotButton.on('pointerdown', () => this.onSlotButton())
+    this.slotButton = addButton(this, 672, SLOT_Y2, 'スピン', {
+      fontSize: 22,
+      padding: { x: 16, y: 6 },
+      onClick: () => this.onSlotButton(),
+    })
     this.refreshSlotUi()
   }
 
@@ -187,6 +262,12 @@ export class BattleScene extends Phaser.Scene {
     const payout = payoutFor(this.slotRole, BET)
     if (payout > 0) {
       gameState.coins += payout
+      sfx.win()
+    }
+    const eggs = eggsFor(this.slotRole)
+    if (eggs > 0) {
+      gameState.eggs += eggs
+      this.showBanner('タマゴ獲得！', '#ffe24a')
       sfx.win()
     }
     if (this.slotRole === 'sword' || this.slotRole === 'heart' || this.slotRole === 'star') {
@@ -277,6 +358,8 @@ export class BattleScene extends Phaser.Scene {
       case 'end': {
         this.ticker?.remove()
         this.ticker = null
+        // 説明が出たまま終局したら閉じて完了扱い（結果画面を隠さない。保存はshowResult内）
+        this.dismissBoostGuide()
         this.refreshSlotUi()
         this.showResult(ev.winner === 'party')
         break
@@ -326,11 +409,12 @@ export class BattleScene extends Phaser.Scene {
 
     if (won) {
       sfx.victory()
+      bgm.victoryJingle(this)
       this.cameras.main.shake(180, 0.004)
     } else {
       sfx.defeat()
     }
-    this.add.rectangle(480, 270, 460, 320, 0x1a1026, 0.92)
+    addPanel(this, 480, 270, 460, 320)
     this.add
       .text(480, 160, won ? '勝利！' : '敗北…', {
         fontSize: '52px',
@@ -355,15 +439,10 @@ export class BattleScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
 
-    const back = this.add
-      .text(480, 370, 'メインへ戻る', {
-        fontSize: '26px',
-        color: '#ffffff',
-        backgroundColor: '#7a2ea0',
-        padding: { x: 24, y: 8 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    back.on('pointerdown', () => this.scene.start('Main'))
+    addButton(this, 480, 370, 'メインへ戻る', {
+      fontSize: 26,
+      padding: { x: 24, y: 8 },
+      onClick: () => fadeToScene(this, 'Main'),
+    })
   }
 }

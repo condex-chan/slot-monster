@@ -1,6 +1,9 @@
 // セーブ/ロード（pure TS）。ストレージは注入可能にしてテストでは偽物を使う。
 // 壊れた・型が合わないデータは黙って初期状態にフォールバックする
 import { createInitialState, type GameState } from './state'
+import { normalizeMuted } from './audio'
+import { normalizeBetLines } from './lines'
+import { normalizeGuide } from './onboarding'
 import { MATERIALS } from '../data/materials'
 import { SKILLS, SPECIES } from '../data/monsters'
 
@@ -9,6 +12,13 @@ export const SAVE_KEY = 'slot-monster-save-v1'
 export interface StorageLike {
   getItem(key: string): string | null
   setItem(key: string, value: string): void
+  removeItem?(key: string): void
+}
+
+/** セーブを消す（タイトルの「はじめから」用）。removeItem の無い環境は空文字で潰す */
+export function clearSave(storage: StorageLike): void {
+  if (storage.removeItem) storage.removeItem(SAVE_KEY)
+  else storage.setItem(SAVE_KEY, '')
 }
 
 export function saveState(state: GameState, storage: StorageLike): void {
@@ -40,9 +50,26 @@ export function loadState(storage: StorageLike): GameState {
       bestFloor: data.bestFloor,
       discovered: data.discovered,
       autoSpin: data.autoSpin,
+      // ガイドは後付けフィールド: v1セーブに無い場合はプレイ済みとみなし再表示しない
+      guide: normalizeGuide((data as { guide?: unknown }).guide),
+      // ミュートも後付けフィールド: 無ければ音あり
+      muted: normalizeMuted((data as { muted?: unknown }).muted),
+      // ベットライン数も後付け: 無ければ1ライン
+      betLines: normalizeBetLines((data as { betLines?: unknown }).betLines),
     }
   } catch {
     return createInitialState()
+  }
+}
+
+/** 有効なセーブデータが存在するか（タイトル画面の「つづきから」表示判定） */
+export function hasSave(storage: StorageLike): boolean {
+  try {
+    const raw = storage.getItem(SAVE_KEY)
+    if (!raw) return false
+    return isValidSave(JSON.parse(raw))
+  } catch {
+    return false
   }
 }
 
@@ -97,5 +124,21 @@ export function restoreIntoGameState(state: GameState): void {
     Object.assign(state, loadState(window.localStorage))
   } catch {
     /* 読めない環境は初期状態のまま */
+  }
+}
+
+export function hasSavedGame(): boolean {
+  try {
+    return hasSave(window.localStorage)
+  } catch {
+    return false
+  }
+}
+
+export function clearSavedGame(): void {
+  try {
+    clearSave(window.localStorage)
+  } catch {
+    /* 消せない環境では諦める */
   }
 }

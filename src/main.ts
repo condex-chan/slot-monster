@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { BootScene } from './scenes/BootScene'
+import { TitleScene } from './scenes/TitleScene'
 import { MainScene } from './scenes/MainScene'
 import { BattleScene } from './scenes/BattleScene'
 import { RosterScene } from './scenes/RosterScene'
@@ -16,7 +17,7 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, MainScene, BattleScene, RosterScene, DexScene, OddsScene],
+  scene: [BootScene, TitleScene, MainScene, BattleScene, RosterScene, DexScene, OddsScene],
 })
 
 // E2E/dev ビルドでのみ __DEBUG__ フックを露出（本番 dist には含めない）

@@ -60,13 +60,18 @@ try {
 
   await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'load', timeout: 20000 })
 
-  // 1. 起動: canvas 表示と Main シーン到達
+  // 1. 起動: canvas 表示とタイトル到達 → タイトルをスキップして Main へ
   await page.waitForSelector('canvas', { timeout: 15000 })
   await page.waitForFunction(() => window.__DEBUG__ !== undefined, { timeout: 15000 })
+  await page.waitForFunction(() => window.__DEBUG__.activeScene().includes('Title'), {
+    timeout: 15000,
+  })
+  console.log('[e2e] boot -> Title OK')
+  await page.evaluate(() => window.__DEBUG__.skipTitle())
   await page.waitForFunction(() => window.__DEBUG__.activeScene().includes('Main'), {
     timeout: 15000,
   })
-  console.log('[e2e] boot -> Main OK')
+  console.log('[e2e] title skip -> Main OK')
 
   // 2. スピン: コイン残高が変化する（ベット消費±払い出し）
   const coinsBefore = await page.evaluate(() => window.__DEBUG__.state.coins)

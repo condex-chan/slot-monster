@@ -1,4 +1,7 @@
 import Phaser from 'phaser'
+import { bgm } from '../assets/bgm'
+import { addButton } from '../ui/button'
+import { fadeIn, fadeToScene } from '../ui/transitions'
 import { isDiscovered } from '../core/collection'
 import { gameState } from '../core/state'
 import { SPECIES } from '../data/monsters'
@@ -13,11 +16,14 @@ export class DexScene extends Phaser.Scene {
   }
 
   create() {
+    bgm.enter(this, 'Dex')
+    fadeIn(this)
     const found = SPECIES.filter((s) => isDiscovered(gameState, s.id)).length
     this.add
       .text(480, 36, `図鑑（${found} / ${SPECIES.length}）`, {
         fontSize: '26px',
         color: '#ffd700',
+        padding: { top: 5 },
       })
       .setOrigin(0.5)
 
@@ -37,15 +43,9 @@ export class DexScene extends Phaser.Scene {
         .setOrigin(0.5)
     })
 
-    const back = this.add
-      .text(884, 40, 'もどる', {
-        fontSize: '20px',
-        color: '#ffffff',
-        backgroundColor: '#7a2ea0',
-        padding: { x: 16, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    back.on('pointerdown', () => this.scene.start('Main'))
+    addButton(this, 884, 40, 'もどる', {
+      padding: { x: 16, y: 6 },
+      onClick: () => fadeToScene(this, 'Main'),
+    })
   }
 }

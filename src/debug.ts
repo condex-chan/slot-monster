@@ -9,6 +9,8 @@ export interface DebugApi {
   state: typeof gameState
   activeScene(): string
   addCoins(n: number): void
+  /** タイトル画面を飛ばして Main へ（E2E は既存フローを維持する） */
+  skipTitle(): void
   /** 次のスピンを天井確定にする */
   forceRush(): void
   /** メイン画面で1スピンを即時完了させる */
@@ -16,6 +18,8 @@ export interface DebugApi {
   /** バトルを終局まで早送りする（結果画面まで進む） */
   fastForwardBattle(): void
   battleOver(): boolean
+  /** テクスチャの出所: 外部画像ならロード元URL、コード生成なら 'generated' */
+  textureSrc(key: string): string
 }
 
 declare global {
@@ -35,11 +39,18 @@ export function installDebugHooks(game: Phaser.Game): void {
     addCoins: (n) => {
       gameState.coins += n
     },
+    skipTitle: () => {
+      if (game.scene.isActive('Title')) game.scene.getScene('Title').scene.start('Main')
+    },
     forceRush: () => {
       gameState.spinsSinceBattle = CEILING_SPINS
     },
     spinOnce: () => (game.scene.getScene('Main') as MainScene).debugSpinOnce(),
     fastForwardBattle: () => (game.scene.getScene('Battle') as BattleScene).debugFastForward(),
     battleOver: () => (game.scene.getScene('Battle') as BattleScene).isBattleOver(),
+    textureSrc: (key) => {
+      const image = game.textures.get(key).getSourceImage()
+      return image instanceof HTMLImageElement ? image.src : 'generated'
+    },
   }
 }

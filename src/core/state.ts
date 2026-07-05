@@ -1,6 +1,8 @@
 // シーン横断のゲーム状態（pure TS）。シーンは restart で作り直されるため
 // 進行状態はここに持つ。F18 でこのオブジェクトを localStorage に保存する
 import { INITIAL_COINS } from './economy'
+import type { BetLines } from './lines'
+import type { GuideStep } from './onboarding'
 import type { SpeciesId } from '../data/monsters'
 import type { MaterialId } from '../data/materials'
 
@@ -41,6 +43,12 @@ export interface GameState {
   discovered: SpeciesId[]
   /** オートスピン設定（解放後のみ有効化できる） */
   autoSpin: boolean
+  /** 初回オンボーディングの進行段階（done で完了） */
+  guide: GuideStep
+  /** ミュート設定（BGM・SE共通） */
+  muted: boolean
+  /** ベットライン数（1=中央のみ・10コイン / 3=上中下・30コイン） */
+  betLines: BetLines
 }
 
 const zeroBonus = (): MonsterBonus => ({ hp: 0, atk: 0, def: 0, spd: 0 })
@@ -62,6 +70,9 @@ export function createInitialState(): GameState {
     bestFloor: 1,
     discovered: ['wolfy', 'draco', 'pururu'],
     autoSpin: false,
+    guide: 'spin',
+    muted: false,
+    betLines: 1,
   }
 }
 

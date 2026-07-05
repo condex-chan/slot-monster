@@ -1,4 +1,8 @@
 import Phaser from 'phaser'
+import { bgm } from '../assets/bgm'
+import { addButton } from '../ui/button'
+import { addPanel } from '../ui/panel'
+import { fadeIn, fadeToScene } from '../ui/transitions'
 import { mulberry32, type Rng } from '../core/rng'
 import { assignToParty, getInstance, hatchEgg, totalStats } from '../core/collection'
 import { feed } from '../core/feeding'
@@ -34,13 +38,15 @@ export class RosterScene extends Phaser.Scene {
   }
 
   create() {
+    bgm.enter(this, 'Roster')
+    fadeIn(this)
     this.rng = mulberry32(Date.now() >>> 0)
     this.selectedUid = null
     this.partyImgs = []
     this.partyLabels = []
 
     this.add
-      .text(480, 32, '育成・編成', { fontSize: '26px', color: '#ffd700' })
+      .text(480, 32, '育成・編成', { fontSize: '26px', color: '#ffd700', padding: { top: 5 } })
       .setOrigin(0.5)
 
     for (let i = 0; i < 3; i++) {
@@ -65,31 +71,27 @@ export class RosterScene extends Phaser.Scene {
 
     this.rosterContainer = this.add.container(0, 0)
 
-    this.eggText = this.add.text(24, 24, '', { fontSize: '20px', color: '#ffe24a' })
-    const hatchBtn = this.add
-      .text(64, 64, '孵化する', {
-        fontSize: '18px',
-        color: '#ffffff',
-        backgroundColor: '#2e7d32',
-        padding: { x: 12, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    hatchBtn.on('pointerdown', () => this.hatch())
+    this.eggText = this.add.text(24, 24, '', {
+      fontSize: '20px',
+      color: '#ffe24a',
+      padding: { top: 4 },
+    })
+    addButton(this, 64, 64, '孵化する', {
+      fontSize: 18,
+      color: '#2e7d32',
+      padding: { x: 12, y: 6 },
+      onClick: () => this.hatch(),
+    })
 
     this.fusionMode = false
     this.fusionPicks = []
     this.skillPanel = null
-    this.fusionButton = this.add
-      .text(64, 108, '配合する', {
-        fontSize: '18px',
-        color: '#ffffff',
-        backgroundColor: '#8e24aa',
-        padding: { x: 12, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    this.fusionButton.on('pointerdown', () => this.toggleFusionMode())
+    this.fusionButton = addButton(this, 64, 108, '配合する', {
+      fontSize: 18,
+      color: '#8e24aa',
+      padding: { x: 12, y: 6 },
+      onClick: () => this.toggleFusionMode(),
+    })
 
     this.infoText = this.add
       .text(480, 512, '', { fontSize: '16px', color: '#9cd8ff' })
@@ -98,30 +100,20 @@ export class RosterScene extends Phaser.Scene {
     // 餌やり: 選択中の個体に素材を与える（素材種別と上昇量は data/materials.ts）
     this.materialButtons.clear()
     MATERIALS.forEach((mat, i) => {
-      const btn = this.add
-        .text(190 + i * 195, 478, '', {
-          fontSize: '14px',
-          color: '#ffffff',
-          backgroundColor: '#5d4037',
-          padding: { x: 8, y: 4 },
-        })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true })
-      btn.on('pointerdown', () => this.feedSelected(mat.id))
+      const btn = addButton(this, 190 + i * 195, 478, '', {
+        fontSize: 14,
+        color: '#5d4037',
+        padding: { x: 8, y: 4 },
+        onClick: () => this.feedSelected(mat.id),
+      })
       this.materialButtons.set(mat.id, btn)
     })
     this.refreshMaterialUi()
 
-    const back = this.add
-      .text(884, 40, 'もどる', {
-        fontSize: '20px',
-        color: '#ffffff',
-        backgroundColor: '#7a2ea0',
-        padding: { x: 16, y: 6 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    back.on('pointerdown', () => this.scene.start('Main'))
+    addButton(this, 884, 40, 'もどる', {
+      padding: { x: 16, y: 6 },
+      onClick: () => fadeToScene(this, 'Main'),
+    })
 
     this.refreshParty()
     this.rebuildRoster()
@@ -252,7 +244,7 @@ export class RosterScene extends Phaser.Scene {
   private showSkillChoice() {
     const [a, b] = this.fusionPicks.map((uid) => getInstance(gameState, uid))
     const panel = this.add.container(480, 270)
-    panel.add(this.add.rectangle(0, 0, 420, 180, 0x1a1026, 0.96).setStrokeStyle(2, 0xff5fd7))
+    panel.add(addPanel(this, 0, 0, 420, 180, 0.96))
     panel.add(
       this.add
         .text(0, -60, '継承するスキルを選んでください', { fontSize: '18px', color: '#ffffff' })
@@ -263,26 +255,23 @@ export class RosterScene extends Phaser.Scene {
       [b.skillId, `${getSpecies(b.speciesId).label}の ${SKILLS[b.skillId].label}`],
     ]
     options.forEach(([skillId, label], idx) => {
-      const btn = this.add
-        .text(0, -18 + idx * 42, label, {
-          fontSize: '17px',
-          color: '#ffffff',
-          backgroundColor: '#8e24aa',
-          padding: { x: 14, y: 6 },
-        })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true })
-      btn.on('pointerdown', () => this.executeFusion(skillId))
+      const btn = addButton(this, 0, -18 + idx * 42, label, {
+        fontSize: 17,
+        color: '#8e24aa',
+        padding: { x: 14, y: 6 },
+        onClick: () => this.executeFusion(skillId),
+      })
       panel.add(btn)
     })
-    const cancel = this.add
-      .text(0, 66, 'キャンセル', { fontSize: '14px', color: '#8899aa' })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true })
-    cancel.on('pointerdown', () => {
-      this.closeSkillPanel()
-      this.fusionPicks = []
-      this.rebuildRoster()
+    const cancel = addButton(this, 0, 66, 'キャンセル', {
+      fontSize: 14,
+      color: '#37474f',
+      padding: { x: 10, y: 4 },
+      onClick: () => {
+        this.closeSkillPanel()
+        this.fusionPicks = []
+        this.rebuildRoster()
+      },
     })
     panel.add(cancel)
     this.skillPanel = panel
